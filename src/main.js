@@ -41,6 +41,7 @@ class Game {
     })
 
     this.isTouch = matchMedia('(pointer: coarse)').matches
+    this.ui.buildMinimap(this.terrain, this.gates)
     this.ui.onMuteToggle = () => this.vario.toggleMute()
     document.getElementById('mute-btn').textContent = this.vario.muted ? '🔇' : '🔊'
     this._spawn()
@@ -178,7 +179,11 @@ class Game {
 
   _crash() {
     this.state = 'crashed'
-    this.ui.showCrash(this.gates.current, this.gates.total)
+    const wasStall = this.glider.stalled > 0
+    this.ui.showCrash(this.gates.current, this.gates.total,
+      wasStall ? 'Přetažení u země — hlídej rychlost nad 60 km/h.'
+        : 'Náraz do terénu — přes hřebeny si vytoč výšku v termice.')
+    if (navigator.vibrate) navigator.vibrate(180)
   }
 
   _tick() {
@@ -242,6 +247,7 @@ class Game {
       this.vario.update(this.glider.vario, dt)
       this.vario.updateWind(this.glider.v, this.glider.stalled > 0)
       this._updateGateMarker()
+      this.ui.updateMinimap(this.glider.pos, this.glider.heading, this.gates.current)
 
       // 20s průměrovač varia (co mi ta termika reálně dává?)
       this._avgAcc = (this._avgAcc ?? 0) + this.glider.vario * dt

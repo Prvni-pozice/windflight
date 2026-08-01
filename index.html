@@ -180,7 +180,7 @@
       text-align: center; z-index: 10; pointer-events: none; display: none;
       color: rgba(233, 243, 251, 0.55); font-size: 0.82rem;
     }
-    #mute-btn { pointer-events: auto; cursor: pointer; }
+    #mute-btn, #map-btn { pointer-events: auto; cursor: pointer; }
   </style>
 </head>
 <body>
@@ -221,6 +221,7 @@
   <div id="crash-overlay" class="overlay hidden">
     <h1>💥 Tvrdé přistání</h1>
     <div class="subtitle" id="crash-info"></div>
+    <div class="muted" id="crash-tip" style="max-width:420px; margin-bottom:8px;"></div>
     <button id="crash-retry-btn" style="margin-top: 10px;">↻&nbsp; Letět znovu</button>
   </div>
 
@@ -242,8 +243,10 @@
     <div class="pill"><small>VARIO</small><span id="hud-vario">0.0</span><small style="margin-left:6px">⌀20s</small><span id="hud-vario-avg">0.0</span></div>
     <div class="pill"><small>VÍTR</small><span id="wind-arrow" style="display:inline-block">↑</span></div>
     <button class="pill" id="mute-btn">🔊</button>
+    <button class="pill" id="map-btn">🗺</button>
   </div>
   <div id="vario-gauge"><div id="vario-zero"></div><div id="vario-needle"></div></div>
+  <canvas id="minimap" style="display:none; position:fixed; left:12px; bottom:calc(60px + env(safe-area-inset-bottom,0)); z-index:10; border-radius:10px; border:1px solid rgba(255,255,255,0.25); opacity:0.92;"></canvas>
   <div id="gate-info" style="display:none"></div>
   <div id="gate-marker"><span class="ring">⭘</span></div>
   <div id="gate-flash"></div>
