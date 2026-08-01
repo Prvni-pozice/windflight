@@ -1,0 +1,14 @@
+{
+  "name": "Chamonix / Mont Blanc",
+  "lon0": 6.55,
+  "lon1": 7,
+  "lat0": 45.72,
+  "lat1": 46,
+  "gw": 640,
+  "gh": 576,
+  "widthM": 34886,
+  "heightM": 30961,
+  "hmin": 507,
+  "hmax": 4805,
+  "source": "Copernicus GLO-30 DEM (ESA), řádky od severu"
+}
