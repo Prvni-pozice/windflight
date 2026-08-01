@@ -17,6 +17,23 @@ export class FlightControls {
     addEventListener('keydown', e => { this.keys[e.code] = true })
     addEventListener('keyup', e => { this.keys[e.code] = false })
 
+    // myš jako knipl: podržet levé tlačítko a táhnout (desktop)
+    this.mouse = { active: false, dx: 0, dy: 0 }
+    addEventListener('mousedown', e => {
+      if (e.button !== 0 || e.target.closest('.overlay, button, input, #hud')) return
+      this.mouse.active = true
+      this.mouse.x0 = e.clientX
+      this.mouse.y0 = e.clientY
+      this.mouse.dx = 0
+      this.mouse.dy = 0
+    })
+    addEventListener('mousemove', e => {
+      if (!this.mouse.active) return
+      this.mouse.dx = (e.clientX - this.mouse.x0) / 160
+      this.mouse.dy = (e.clientY - this.mouse.y0) / 160
+    })
+    addEventListener('mouseup', () => { this.mouse.active = false; this.mouse.dx = 0; this.mouse.dy = 0 })
+
     this._calRemaining = 0
     this._calB = 0
     this._calG = 0
@@ -130,6 +147,12 @@ export class FlightControls {
 
   getInput() {
     let pitch = 0, roll = 0
+
+    // myš-knipl: tažení dolů = přitáhnout (letecky)
+    if (this.mouse.active) {
+      roll += Math.max(-1, Math.min(1, this.mouse.dx))
+      pitch += Math.max(-1, Math.min(1, -this.mouse.dy))
+    }
 
     // klávesnice — LETECKY: šipka dolů = přitáhnout (stoupá), nahoru = potlačit
     if (this.keys.ArrowUp) pitch -= 1

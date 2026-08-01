@@ -11,11 +11,11 @@ const G = 9.81
 export const V_MIN_SINK = 23   // m/s (~83 km/h) rychlost minimálního opadání
 export const V_STALL = 16.5    // m/s (~59 km/h)
 export const V_MAX = 58        // m/s (~209 km/h)
-const SINK_MIN = 0.55          // m/s opadání při V_MIN_SINK (výkonný větroň)
+const SINK_MIN = 0.58          // m/s opadání při V_MIN_SINK (výkonný větroň, L/D ~42)
 
 export function polarSink(v) {
   const dv = v - V_MIN_SINK
-  return SINK_MIN + (dv > 0 ? 0.0038 : 0.010) * dv * dv
+  return SINK_MIN + (dv > 0 ? 0.0042 : 0.010) * dv * dv
 }
 
 export class Glider {

@@ -177,8 +177,11 @@ export class LiftField {
         puff.scale.y = 0.55
         cl.add(puff)
       }
-      const base = new THREE.Mesh(new THREE.CylinderGeometry(300, 300, 30, 12), flatMat)
+      const base = new THREE.Mesh(new THREE.CylinderGeometry(300, 300, 30, 12), flatMat.clone())
       cl.add(base)
+      // vlastní materiály kvůli per-cloud fade (sdílený mat by fadeoval všechny)
+      cl.traverse(o => { if (o.isMesh && o.material === cloudMat) o.material = cloudMat.clone() })
+      cl.userData.cycle = rng()
       const drift = (th.top - th.ground) * 0.11
       const wl = Math.max(1, this.cond.windVec.length())
       cl.position.set(
@@ -233,6 +236,24 @@ export class LiftField {
       }
     }
     pos.needsUpdate = true
+
+    // kumuly: pomalý drift po větru, zrod → rozpad (cyklus ~3 min)
+    for (let ci = 0; ci < this.clouds.length; ci++) {
+      const cl = this.clouds[ci]
+      const th = this.thermals[ci]
+      cl.userData.cycle = (cl.userData.cycle + dt / 180) % 1
+      const cyc = cl.userData.cycle
+      const driftBase = (th.top - th.ground) * 0.11
+      cl.position.set(
+        th.x + wind.x * driftBase / wl + wind.x * cyc * 140,
+        th.top + 140 + cyc * 60,
+        th.z + wind.z * driftBase / wl + wind.z * cyc * 140,
+      )
+      const op = Math.sin(Math.PI * Math.min(1, cyc * 1.25)) // rychlý zrod, pomalý rozpad
+      cl.traverse(o => { if (o.isMesh) o.material.opacity = 0.92 * (0.35 + 0.65 * op) })
+      const sc2 = 0.7 + op * 0.4
+      cl.scale.set(sc2, sc2, sc2)
+    }
 
     for (const grp of this.birds) {
       const th = grp.th
