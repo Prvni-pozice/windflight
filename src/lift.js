@@ -2,6 +2,7 @@
 // svazích (částicové víry + kumulus + kroužící ptáci), svahové proudění na
 // návětrných hřebenech, klesání v závětří. Jádro hry: pilot čte krajinu.
 import * as THREE from 'three'
+import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js'
 
 function mulberry32(seed) {
   let a = seed >>> 0
@@ -164,23 +165,26 @@ export class LiftField {
     this.group.add(this.particles)
 
     // kumulus nad každou termikou (pár koulí) — ukazuje strop stoupání
-    const cloudMat = new THREE.MeshLambertMaterial({ color: 0xffffff, transparent: true, opacity: 0.92 })
-    const flatMat = new THREE.MeshLambertMaterial({ color: 0xd8dee8, transparent: true, opacity: 0.9 })
     this.clouds = []
     for (const th of this.thermals) {
       const cl = new THREE.Group()
+      // jeden sloučený mesh na mrak (draw-cally!): obláčky + tmavší basa
+      const parts = []
       const puffs = 3 + (rng() * 3 | 0)
       for (let p = 0; p < puffs; p++) {
         const r = 130 + rng() * 170
-        const puff = new THREE.Mesh(new THREE.SphereGeometry(r, 10, 8), cloudMat)
-        puff.position.set((rng() - 0.5) * 420, (rng() - 0.3) * 90, (rng() - 0.5) * 420)
-        puff.scale.y = 0.55
-        cl.add(puff)
+        const gpuff = new THREE.SphereGeometry(r, 10, 8)
+        gpuff.scale(1, 0.55, 1)
+        gpuff.translate((rng() - 0.5) * 420, (rng() - 0.3) * 90, (rng() - 0.5) * 420)
+        parts.push(gpuff)
       }
-      const base = new THREE.Mesh(new THREE.CylinderGeometry(300, 300, 30, 12), flatMat.clone())
-      cl.add(base)
-      // vlastní materiály kvůli per-cloud fade (sdílený mat by fadeoval všechny)
-      cl.traverse(o => { if (o.isMesh && o.material === cloudMat) o.material = cloudMat.clone() })
+      const gbase = new THREE.CylinderGeometry(300, 300, 30, 12)
+      parts.push(gbase)
+      const merged = mergeGeometries(parts)
+      const mesh = new THREE.Mesh(merged, new THREE.MeshLambertMaterial({
+        color: 0xffffff, transparent: true, opacity: 0.92,
+      }))
+      cl.add(mesh)
       cl.userData.cycle = rng()
       const drift = (th.top - th.ground) * 0.11
       const wl = Math.max(1, this.cond.windVec.length())

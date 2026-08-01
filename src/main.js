@@ -116,6 +116,35 @@ class Game {
 
     this.terrain.addTo(this.scene)
     buildScenery(this.scene, this.terrain)
+
+    // silueta dalekých hřebenů na obzoru (prstenec zubatého pásu v oparu)
+    {
+      const N = 160, R = 52000
+      const pos = []
+      const cx = this.terrain.sizeX / 2, cz = this.terrain.sizeZ / 2
+      let ph = 0
+      for (let i = 0; i <= N; i++) {
+        const a = i / N * Math.PI * 2
+        ph += 0.9 + Math.sin(i * 12.9898) * 0.4
+        const hgt = 2600 + Math.sin(ph) * 900 + Math.sin(ph * 2.7) * 450
+        const x = cx + Math.cos(a) * R, z = cz + Math.sin(a) * R
+        pos.push(x, -200, z, x, hgt, z)
+      }
+      const idx = []
+      for (let i = 0; i < N; i++) {
+        const b = i * 2
+        idx.push(b, b + 1, b + 2, b + 1, b + 3, b + 2)
+      }
+      const geo = new THREE.BufferGeometry()
+      geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3))
+      geo.setIndex(idx)
+      geo.computeVertexNormals()
+      const ridge = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({
+        color: new THREE.Color(0x9fb2c4).lerp(new THREE.Color(0xb9bec6), cc),
+        side: THREE.DoubleSide, fog: false, transparent: true, opacity: 0.55,
+      }))
+      this.scene.add(ridge)
+    }
     this.gates = new Gates(this.scene, this.terrain)
     const route = [this.startPoint()].concat(this.gates.list.map(g => ({ x: g.x, z: g.z })))
     this.lift = new LiftField(this.scene, this.terrain, this.cond, this.sunDir, route)
@@ -178,7 +207,9 @@ class Game {
       // plynulá rampa vstupu — klávesy dávají skoky, kniple ne
       if (!this._inSm) this._inSm = { pitch: 0, roll: 0 }
       const k = Math.min(1, dt * 6.5)
-      this._inSm.pitch += (raw.pitch - this._inSm.pitch) * k
+      // na mobilu (tilt) chráníme před nechtěným přetažením: max přitažení 0.8
+      const pitchIn = (this.isTouch && this.controls.tiltActive) ? Math.max(-0.8, raw.pitch) : raw.pitch
+      this._inSm.pitch += (pitchIn - this._inSm.pitch) * k
       this._inSm.roll += (raw.roll - this._inSm.roll) * k
       const input = this._inSm
       const lift = this.lift.liftAt(this.glider.pos)
@@ -188,8 +219,13 @@ class Game {
 
       if (this.gates.check(this.glider.pos)) {
         this.ui.gatePassed(this.gates.current, this.gates.total)
+        if (navigator.vibrate) navigator.vibrate(60)
         if (!this.gates.next) { this._finish() }
       }
+      if (this.glider.stalled > 0 && !this._stallBuzz) {
+        this._stallBuzz = true
+        if (navigator.vibrate) navigator.vibrate([40, 60, 40])
+      } else if (this.glider.stalled <= 0) this._stallBuzz = false
 
       const ms = performance.now() - this.runStart
       this.ui.updateHud({
