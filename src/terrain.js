@@ -109,6 +109,16 @@ export class Terrain {
       // ledovcové splazy: vysoko položené mírné údolí (Mer de Glace)
       if (h > 1900 && h < 2750 && slope < 0.16) c.lerp(glacier, 0.4)
 
+      // kartografický hillshade (světlo od SZ) — plastika reliéfu nezávislá
+      // na dynamickém světle; jemná, ať nepřebije barvy
+      {
+        const nx = (xl - xr) / (4 * cell), nz = (zu - zd) / (4 * cell)
+        const inv = 1 / Math.hypot(nx, 1, nz)
+        const shade = Math.max(0, (-0.45 * nx + 0.75 + 0.45 * nz) * inv) // dot s (-0.45,0.75,0.45)
+        const f = 0.72 + shade * 0.42
+        c.r = Math.min(1, c.r * f); c.g = Math.min(1, c.g * f); c.b = Math.min(1, c.b * f)
+      }
+
       colors[i * 3] = c.r; colors[i * 3 + 1] = c.g; colors[i * 3 + 2] = c.b
     }
     geo.setAttribute('color', new THREE.BufferAttribute(colors, 3))

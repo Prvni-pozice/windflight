@@ -71,10 +71,12 @@ class Game {
     this.sunDir = sunDirVector(this.sun)
     this.cond = deriveConditions(this.weather, this.sun.elevDeg)
 
-    const sunLight = new THREE.DirectionalLight(0xfff3dd, 2.1)
+    // nálada dne: zataženo = měkčí slunce, víc rozptylu, šedavější opar
+    const cc = this.weather.cloudCover
+    const sunLight = new THREE.DirectionalLight(0xfff3dd, 2.1 * (1 - 0.45 * cc))
     sunLight.position.copy(this.sunDir).multiplyScalar(20000)
     this.scene.add(sunLight)
-    this.scene.add(new THREE.HemisphereLight(0xcfe4ff, 0x8ba86e, 0.85))
+    this.scene.add(new THREE.HemisphereLight(0xcfe4ff, 0x8ba86e, 0.85 + 0.5 * cc))
 
     // obloha: gradient + sluneční kotouč + opar u horizontu
     const skyMat = new THREE.ShaderMaterial({
@@ -108,7 +110,9 @@ class Game {
     this.sky = new THREE.Mesh(new THREE.SphereGeometry(70000, 32, 16), skyMat)
     this.scene.add(this.sky)
 
-    this.scene.fog = new THREE.Fog(0xd9e4ec, 9000, 60000)
+    const fogCol = new THREE.Color().lerpColors(
+      new THREE.Color(0xdce8f2), new THREE.Color(0xc6ccd3), cc)
+    this.scene.fog = new THREE.Fog(fogCol, 9000 - cc * 3500, 60000 - cc * 18000)
 
     this.terrain.addTo(this.scene)
     buildScenery(this.scene, this.terrain)
@@ -130,6 +134,7 @@ class Game {
   }
 
   _startRun() {
+    if (this._inSm) { this._inSm.pitch = 0; this._inSm.roll = 0 }
     this._spawn()
     this.state = 'flying'
     this.runStart = performance.now()
@@ -167,9 +172,15 @@ class Game {
     }
 
     if (this.state === 'flying') {
-      const input = this.controls.getInput()
-      if (input.reset && !this._resetHeld) { this._resetHeld = true; this._startRun(); return }
-      if (!input.reset) this._resetHeld = false
+      const raw = this.controls.getInput()
+      if (raw.reset && !this._resetHeld) { this._resetHeld = true; this._startRun(); return }
+      if (!raw.reset) this._resetHeld = false
+      // plynulá rampa vstupu — klávesy dávají skoky, kniple ne
+      if (!this._inSm) this._inSm = { pitch: 0, roll: 0 }
+      const k = Math.min(1, dt * 6.5)
+      this._inSm.pitch += (raw.pitch - this._inSm.pitch) * k
+      this._inSm.roll += (raw.roll - this._inSm.roll) * k
+      const input = this._inSm
       const lift = this.lift.liftAt(this.glider.pos)
       this.glider.update(dt, input, lift, this.cond.windVec, this.terrain)
 
