@@ -209,6 +209,12 @@ export class UI {
     c.restore()
   }
 
+  setTiltMode(tiltOk) {
+    document.getElementById('tilt-hint').textContent = tiltOk
+      ? 'Dvojklepem kdykoli zkalibruješ neutrální držení telefonu'
+      : 'Táhni prstem po obrazovce = knipl (náklon není dostupný — funguje na HTTPS)'
+  }
+
   async beginRun() {
     this.runToken = null
     try { this.runToken = await requestSession() } catch { /* offline */ }

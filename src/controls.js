@@ -17,6 +17,53 @@ export class FlightControls {
     addEventListener('keydown', e => { this.keys[e.code] = true })
     addEventListener('keyup', e => { this.keys[e.code] = false })
 
+    // dotykový virtuální knipl: táhni prstem kdekoli (fallback, když
+    // náklon není dostupný — http://, odepřené povolení, starý mobil)
+    this.touchStickEnabled = false
+    this.stick = { active: false, dx: 0, dy: 0, id: null }
+    addEventListener('touchstart', e => {
+      if (!this.touchStickEnabled || this.tiltActive) return
+      if (e.target.closest && e.target.closest('.overlay, button, input')) return
+      const t = e.changedTouches[0]
+      this.stick.active = true
+      this.stick.id = t.identifier
+      this.stick.x0 = t.clientX
+      this.stick.y0 = t.clientY
+      this.stick.dx = 0; this.stick.dy = 0
+      const base = document.getElementById('stick-base')
+      if (base) {
+        base.style.display = 'block'
+        base.style.left = t.clientX + 'px'
+        base.style.top = t.clientY + 'px'
+      }
+    }, { passive: true })
+    addEventListener('touchmove', e => {
+      if (!this.stick.active) return
+      for (const t of e.changedTouches) {
+        if (t.identifier !== this.stick.id) continue
+        this.stick.dx = Math.max(-1, Math.min(1, (t.clientX - this.stick.x0) / 70))
+        this.stick.dy = Math.max(-1, Math.min(1, (t.clientY - this.stick.y0) / 70))
+        const knob = document.getElementById('stick-knob')
+        if (knob) {
+          knob.style.transform = `translate(calc(-50% + ${this.stick.dx * 34}px), calc(-50% + ${this.stick.dy * 34}px))`
+        }
+      }
+    }, { passive: true })
+    const stickEnd = e => {
+      if (!this.stick.active) return
+      for (const t of e.changedTouches) {
+        if (t.identifier !== this.stick.id) continue
+        this.stick.active = false
+        this.stick.dx = 0; this.stick.dy = 0
+        const base = document.getElementById('stick-base')
+        if (base) base.style.display = 'none'
+        const knob = document.getElementById('stick-knob')
+        if (knob) knob.style.transform = 'translate(-50%, -50%)'
+      }
+    }
+    addEventListener('touchend', stickEnd, { passive: true })
+    addEventListener('touchcancel', stickEnd, { passive: true })
+
     // myš jako knipl: podržet levé tlačítko a táhnout (desktop)
     this.mouse = { active: false, dx: 0, dy: 0 }
     addEventListener('mousedown', e => {
@@ -156,6 +203,12 @@ export class FlightControls {
     if (this.mouse.active) {
       roll += Math.max(-1, Math.min(1, this.mouse.dx))
       pitch += Math.max(-1, Math.min(1, -this.mouse.dy))
+    }
+
+    // dotykový knipl (jen když neřídí náklon): dolů = přitáhnout
+    if (this.stick.active) {
+      roll += this.stick.dx
+      pitch += -this.stick.dy
     }
 
     // klávesnice — LETECKY: šipka dolů = přitáhnout (stoupá), nahoru = potlačit

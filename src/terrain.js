@@ -124,7 +124,24 @@ export class Terrain {
     geo.setAttribute('color', new THREE.BufferAttribute(colors, 3))
     geo.computeVertexNormals()
 
-    const mat = new THREE.MeshLambertMaterial({ vertexColors: true })
+    // jemný šedý šum jako detail-mapa: high-freq struktura zblízka
+    const dc = document.createElement('canvas')
+    dc.width = dc.height = 256
+    const dctx = dc.getContext('2d')
+    const dimg = dctx.createImageData(256, 256)
+    let seed = 12345
+    const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647
+    for (let i = 0; i < 256 * 256; i++) {
+      const v = 215 + rnd() * 40
+      dimg.data[i * 4] = v; dimg.data[i * 4 + 1] = v; dimg.data[i * 4 + 2] = v
+      dimg.data[i * 4 + 3] = 255
+    }
+    dctx.putImageData(dimg, 0, 0)
+    const detail = new THREE.CanvasTexture(dc)
+    detail.wrapS = detail.wrapT = THREE.RepeatWrapping
+    detail.repeat.set(this.sizeX / 340, this.sizeZ / 340)
+
+    const mat = new THREE.MeshLambertMaterial({ vertexColors: true, map: detail })
     this.mesh = new THREE.Mesh(geo, mat)
 
     // okolní "svět" pod okrajem mapy, ať není vidět do prázdna

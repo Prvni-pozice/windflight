@@ -34,7 +34,12 @@ class Game {
       gateTotal: this.gates.total,
       onStart: async () => {
         this.vario.init()
-        if (this.isTouch) await this.controls.enableTilt().then(r => { if (r === 'ok') this.controls.calibrate() })
+        if (this.isTouch) {
+          const r = await this.controls.enableTilt()
+          if (r === 'ok') this.controls.calibrate()
+          else this.controls.touchStickEnabled = true // fallback: virtuální knipl
+          this.ui.setTiltMode(r === 'ok')
+        }
         this._startRun()
       },
       onRetry: () => this._startRun(),
