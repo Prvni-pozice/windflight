@@ -10,6 +10,7 @@ import { Gates, GATE_R } from './gates.js'
 import { Vario } from './vario.js'
 import { FlightControls } from './controls.js'
 import { UI } from './ui.js'
+import { buildScenery } from './scenery.js'
 
 const START = { lat: 45.9290, lon: 6.8560, alt: 2600, headingDeg: 20 } // nad Chamonix, čelem k Bréventu
 
@@ -108,6 +109,7 @@ class Game {
     this.scene.fog = new THREE.Fog(0xd9e4ec, 9000, 60000)
 
     this.terrain.addTo(this.scene)
+    buildScenery(this.scene, this.terrain)
     this.gates = new Gates(this.scene, this.terrain)
     const route = [this.startPoint()].concat(this.gates.list.map(g => ({ x: g.x, z: g.z })))
     this.lift = new LiftField(this.scene, this.terrain, this.cond, this.sunDir, route)

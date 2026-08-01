@@ -246,6 +246,7 @@ export class LiftField {
         )
         b.m.rotation.y = -ang - Math.PI / 2
         b.m.rotation.z = 0.3
+        b.m.scale.y = 0.6 + Math.abs(Math.sin(this.time * 6 + b.off * 3)) * 0.9 // mávání
       }
     }
   }

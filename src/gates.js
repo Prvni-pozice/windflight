@@ -42,6 +42,15 @@ export class Gates {
       const prev = i === 0 ? null : this.list[i - 1]
       if (prev) g.mesh.lookAt(prev.x, g.y, prev.z)
     }
+    // světelný sloup nad AKTUÁLNÍ bránou — vidět zdaleka
+    this.beam = new THREE.Mesh(
+      new THREE.CylinderGeometry(26, 26, 2600, 12, 1, true),
+      new THREE.MeshBasicMaterial({
+        color: 0x37d67a, transparent: true, opacity: 0.16,
+        side: THREE.DoubleSide, depthWrite: false,
+      }),
+    )
+    this.group.add(this.beam)
     this._refreshMats()
     scene.add(this.group)
   }
@@ -53,6 +62,11 @@ export class Gates {
     this.list.forEach((g, i) => {
       g.mesh.material = g.done ? this.matDone : (i === this.current ? this.matNext : this.matFar)
     })
+    const n = this.next
+    if (this.beam) {
+      this.beam.visible = !!n
+      if (n) this.beam.position.set(n.x, n.y + 1300, n.z)
+    }
   }
 
   /** Vrátí true, pokud byla právě proletěna další brána. */
@@ -80,6 +94,7 @@ export class Gates {
     if (g) {
       const s = 1 + Math.sin(t * 3.5) * 0.04
       g.mesh.scale.set(s, s, s)
+      this.beam.material.opacity = 0.12 + Math.sin(t * 2.2) * 0.05
     }
   }
 }
