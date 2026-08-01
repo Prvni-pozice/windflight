@@ -144,5 +144,37 @@ export class Glider {
 
     this.model = g
     scene.add(g)
+
+    // měkký stín na terénu — zásadní pro odhad výšky nad zemí
+    const shadowTex = (() => {
+      const c = document.createElement('canvas')
+      c.width = c.height = 64
+      const ctx = c.getContext('2d')
+      const grad = ctx.createRadialGradient(32, 32, 4, 32, 32, 30)
+      grad.addColorStop(0, 'rgba(0,0,0,0.42)')
+      grad.addColorStop(1, 'rgba(0,0,0,0)')
+      ctx.fillStyle = grad
+      ctx.fillRect(0, 0, 64, 64)
+      const t = new THREE.CanvasTexture(c)
+      return t
+    })()
+    this.shadow = new THREE.Mesh(
+      new THREE.PlaneGeometry(16, 16),
+      new THREE.MeshBasicMaterial({ map: shadowTex, transparent: true, depthWrite: false }),
+    )
+    this.shadow.rotation.x = -Math.PI / 2
+    scene.add(this.shadow)
+  }
+
+  /** Stín: na terén pod kluzákem, slábne a roste s výškou. */
+  updateShadow(terrain) {
+    const gy = terrain.heightAt(this.pos.x, this.pos.z)
+    const agl = Math.max(0, this.pos.y - gy)
+    this.shadow.position.set(this.pos.x, gy + 1.5, this.pos.z)
+    const k = Math.max(0.25, 1 - agl / 900)
+    const sc = 1 + agl / 90
+    this.shadow.scale.set(sc, sc, 1)
+    this.shadow.material.opacity = k
+    this.shadow.rotation.z = -this.heading
   }
 }

@@ -203,6 +203,10 @@ export class UI {
       `⭘ ${num}/${total} ${name} · ${distM > 1500 ? (distM / 1000).toFixed(1) + ' km' : Math.round(distM) + ' m'}`
   }
 
+  setVarioAvg(v) {
+    document.getElementById('hud-vario-avg').textContent = (v > 0 ? '+' : '') + v.toFixed(1)
+  }
+
   updateHud({ ms, speedKmh, altM, aglM, vario, stalled, slow }) {
     document.getElementById('hud-time').textContent = formatTime(ms)
     document.getElementById('hud-speed').textContent = Math.round(speedKmh)

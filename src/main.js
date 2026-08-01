@@ -170,14 +170,33 @@ class Game {
         slow: this.glider.v < V_STALL + 2.5,
       })
       this.vario.update(this.glider.vario, dt)
+      this.vario.updateWind(this.glider.v, this.glider.stalled > 0)
       this._updateGateMarker()
+
+      // 20s průměrovač varia (co mi ta termika reálně dává?)
+      this._avgAcc = (this._avgAcc ?? 0) + this.glider.vario * dt
+      this._avgT = (this._avgT ?? 0) + dt
+      if (this._avgT > 0.5) {
+        this._varioAvg = (this._varioAvg ?? 0) * 0.9 + (this._avgAcc / this._avgT) * 0.1
+        this.ui.setVarioAvg(this._varioAvg)
+        this._avgAcc = 0; this._avgT = 0
+      }
     } else {
       this.vario.update(0, dt)
+      this.vario.updateWind(0, false)
     }
 
     this.lift.update(dt)
     this.gates.update(t)
+    this.glider.updateShadow(this.terrain)
     this._updateCamera(dt)
+
+    // FOV dýchá s rychlostí (pocit svištění)
+    const fovT = 64 + Math.min(18, Math.max(0, (this.glider.v - 24) * 0.5))
+    if (Math.abs(this.camera.fov - fovT) > 0.1) {
+      this.camera.fov += (fovT - this.camera.fov) * Math.min(1, dt * 2.5)
+      this.camera.updateProjectionMatrix()
+    }
     this.sky.position.copy(this.camera.position)
     this.renderer.render(this.scene, this.camera)
   }
