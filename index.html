@@ -123,6 +123,8 @@
     .pill small { font-weight: 400; opacity: 0.6; margin-right: 5px; font-size: 0.78rem; }
     #hud-vario.up { color: #7dffb0; }
     #hud-vario.down { color: #ff9c8f; }
+    #hud-agl.low { color: #ffb02e; }
+    #wind-arrow { transition: transform 0.3s linear; font-weight: 800; }
 
     /* variometr — svislá stupnice vpravo */
     #vario-gauge {
@@ -193,7 +195,7 @@
       🌡 <b>termika</b> — sloupce stoupajícího vzduchu nad osluněnými svahy (hledej víry částic, kroužící ptáky a kumuly nad nimi)<br>
       ⛰ <b>svahové proudění</b> — vítr opřený do svahu zvedá podél návětrných hřebenů<br><br>
       <b>Desktop:</b> ←→ náklon (zatáčení) · ↑↓ potlačit/přitáhnout (rychlost)<br>
-      <b>Mobil:</b> náklon telefonu · dvojklep = rekalibrace držení<br>
+      <b>Mobil:</b> náklon telefonu · dvojklep = rekalibrace držení &nbsp;·&nbsp; <b>R</b> = restart<br>
       <span class="tip">⚠ Pod ~60 km/h přetažení. V zatáčce klesáš rychleji. Variometr pípá ve stoupání.</span>
     </div>
     <button id="start-btn">▶&nbsp; Vzlétnout</button>
@@ -238,6 +240,7 @@
     <div class="pill"><small>KM/H</small><span id="hud-speed">0</span></div>
     <div class="pill"><small>VÝŠKA</small><span id="hud-alt">0</span><small style="margin-left:6px">AGL</small><span id="hud-agl">0</span></div>
     <div class="pill"><small>VARIO</small><span id="hud-vario">0.0</span><small style="margin-left:6px">⌀20s</small><span id="hud-vario-avg">0.0</span></div>
+    <div class="pill"><small>VÍTR</small><span id="wind-arrow" style="display:inline-block">↑</span></div>
     <button class="pill" id="mute-btn">🔊</button>
   </div>
   <div id="vario-gauge"><div id="vario-zero"></div><div id="vario-needle"></div></div>

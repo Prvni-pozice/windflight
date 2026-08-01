@@ -138,8 +138,9 @@ export class LiftField {
 
   // ── vizualizace: částicové sloupce + kumulus + ptáci ──
   _buildThermalViz(rng) {
-    const P_PER = 26
+    const P_PER = (typeof matchMedia !== 'undefined' && matchMedia('(pointer: coarse)').matches) ? 14 : 26
     const n = this.thermals.length * P_PER
+    this._pPer = P_PER
     this.partBase = new Float32Array(n * 4) // x,z,phase,radiusFrac
     const positions = new Float32Array(n * 3)
     let pi = 0
@@ -219,7 +220,7 @@ export class LiftField {
     for (const th of this.thermals) {
       const span = th.top - th.ground
       const rate = th.strength * 0.55 // vizuální rychlost stoupání částic
-      for (let k = 0; k < 26; k++, pi++) {
+      for (let k = 0; k < this._pPer; k++, pi++) {
         const phase = this.partBase[pi * 4 + 2]
         const rf = this.partBase[pi * 4 + 3]
         const cyc = ((this.time * rate + phase * 40) % span)

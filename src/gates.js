@@ -12,7 +12,7 @@ const ROUTE = [
   [45.9225, 6.8705, 1550, 'cíl — Chamonix'],
 ]
 
-export const GATE_R = 110 // poloměr průletu (m)
+export const GATE_R = 125 // poloměr průletu (m)
 
 export class Gates {
   constructor(scene, terrain) {
@@ -21,7 +21,7 @@ export class Gates {
     this.current = 0
     this.group = new THREE.Group()
 
-    const ringGeo = new THREE.TorusGeometry(GATE_R, 7, 10, 36)
+    const ringGeo = new THREE.TorusGeometry(GATE_R, 8, 10, 36)
     this.matNext = new THREE.MeshBasicMaterial({ color: 0x37d67a, transparent: true, opacity: 0.95 })
     this.matFar = new THREE.MeshBasicMaterial({ color: 0x9fb4c8, transparent: true, opacity: 0.28 })
     this.matDone = new THREE.MeshBasicMaterial({ color: 0x37d67a, transparent: true, opacity: 0.1 })

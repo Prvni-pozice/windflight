@@ -52,7 +52,9 @@ class Game {
 
   _setupRenderer() {
     this.renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' })
-    this.renderer.setPixelRatio(Math.min(devicePixelRatio, 2))
+    this._prMax = Math.min(devicePixelRatio, matchMedia('(pointer: coarse)').matches ? 1.6 : 2)
+    this._pr = this._prMax
+    this.renderer.setPixelRatio(this._pr)
     this.renderer.setSize(innerWidth, innerHeight)
     this.renderer.outputColorSpace = THREE.SRGBColorSpace
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping
@@ -146,11 +148,28 @@ class Game {
   }
 
   _tick() {
-    const dt = Math.min(this.clock.getDelta(), 0.05)
+    const rawDt = this.clock.getDelta()
+    const dt = Math.min(rawDt, 0.05)
     const t = this.clock.elapsedTime
+
+    // adaptivní kvalita: EMA fps → pixelRatio (plynulost > ostrost)
+    this._fps = (this._fps ?? 60) * 0.95 + (1 / Math.max(rawDt, 1e-3)) * 0.05
+    this._qT = (this._qT ?? 0) + rawDt
+    if (this._qT > 2) {
+      this._qT = 0
+      if (this._fps < 45 && this._pr > 1) {
+        this._pr = Math.max(1, this._pr - 0.25)
+        this.renderer.setPixelRatio(this._pr)
+      } else if (this._fps > 57 && this._pr < this._prMax) {
+        this._pr = Math.min(this._prMax, this._pr + 0.25)
+        this.renderer.setPixelRatio(this._pr)
+      }
+    }
 
     if (this.state === 'flying') {
       const input = this.controls.getInput()
+      if (input.reset && !this._resetHeld) { this._resetHeld = true; this._startRun(); return }
+      if (!input.reset) this._resetHeld = false
       const lift = this.lift.liftAt(this.glider.pos)
       this.glider.update(dt, input, lift, this.cond.windVec, this.terrain)
 
@@ -170,6 +189,8 @@ class Game {
         vario: this.glider.vario + 0, // m/s
         stalled: this.glider.stalled > 0,
         slow: this.glider.v < V_STALL + 2.5,
+        headingDeg: this.glider.heading * 180 / Math.PI,
+        windDirDeg: this.weather.windDirDeg,
       })
       this.vario.update(this.glider.vario, dt)
       this.vario.updateWind(this.glider.v, this.glider.stalled > 0)

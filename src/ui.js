@@ -207,7 +207,7 @@ export class UI {
     document.getElementById('hud-vario-avg').textContent = (v > 0 ? '+' : '') + v.toFixed(1)
   }
 
-  updateHud({ ms, speedKmh, altM, aglM, vario, stalled, slow }) {
+  updateHud({ ms, speedKmh, altM, aglM, vario, stalled, slow, headingDeg, windDirDeg }) {
     document.getElementById('hud-time').textContent = formatTime(ms)
     document.getElementById('hud-speed').textContent = Math.round(speedKmh)
     document.getElementById('hud-alt').textContent = Math.round(altM)
@@ -218,6 +218,10 @@ export class UI {
     const needle = document.getElementById('vario-needle')
     needle.style.transform = `translateY(${-Math.max(-5, Math.min(5, vario)) * 9}px)`
     document.getElementById('stall-warn').classList.toggle('show', stalled || slow)
+    document.getElementById('hud-agl').classList.toggle('low', aglM < 150)
+    // šipka: KAM vítr fouká, v souřadnicích obrazovky (nahoře = můj kurz)
+    const rel = (windDirDeg + 180) - headingDeg
+    document.getElementById('wind-arrow').style.transform = `rotate(${rel}deg)`
   }
 
   async _submit() {
