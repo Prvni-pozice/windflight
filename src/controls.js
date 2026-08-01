@@ -55,11 +55,15 @@ export class FlightControls {
         }
       }
     }
-    // dvojklep kdekoli na obrazovce (mimo tlačítka plynu) = rekalibrace
-    // aktuálního držení telefonu
+    // dvojklep kdekoli na obrazovce = rekalibrace držení telefonu;
+    // dvouprstý tap = přepnout minimapu (event 'wf-map')
     let lastTap = 0
     addEventListener('touchend', e => {
-      if (e.target.closest && e.target.closest('.thr, #overlay')) return
+      if (e.target.closest && e.target.closest('.overlay, button, input')) return
+      if (e.touches.length === 0 && e.changedTouches.length >= 2) {
+        dispatchEvent(new Event('wf-map'))
+        return
+      }
       const now = performance.now()
       if (now - lastTap < 320) this.calibrate()
       lastTap = now

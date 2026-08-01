@@ -168,6 +168,7 @@ export class UI {
     this.mmCtx = cv.getContext('2d')
 
     document.getElementById('map-btn').addEventListener('click', () => this.toggleMinimap())
+    addEventListener('wf-map', () => this.toggleMinimap())
     addEventListener('keydown', e => {
       if (e.code === 'Tab') { e.preventDefault(); this.toggleMinimap() }
     })

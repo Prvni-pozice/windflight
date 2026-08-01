@@ -278,6 +278,20 @@ class Game {
   }
 
   _updateCamera(dt) {
+    // v menu: pomalý orbit nad údolím, pohled na masiv Mont Blancu
+    if (this.state === 'menu') {
+      const t = this.clock ? this.clock.elapsedTime : 0
+      const cx = this.terrain.sizeX * 0.52, cz = this.terrain.sizeZ * 0.30
+      const ang = t * 0.045
+      this.camera.position.set(
+        cx + Math.cos(ang) * 6500,
+        3300 + Math.sin(t * 0.11) * 300,
+        cz + Math.sin(ang) * 6500,
+      )
+      const mb = this.terrain.fromLatLon(45.8326, 6.8652)
+      this.camera.lookAt(mb.x, 3400, mb.z)
+      return
+    }
     // chase kamera za kluzákem, jemně zpožděná, výš při pohledu do údolí
     const g = this.glider
     const back = 26 + g.v * 0.25

@@ -8,7 +8,7 @@ export const KEY = 'windflight-store'
 export const TOKEN_MAX_AGE_MS = 2 * 3600 * 1000 // token platí 2 h
 export const TIME_TOLERANCE_MS = 2500           // sklouz hodin / latence
 export const MIN_TOTAL_MS = 30_000              // rychleji než 30 s celé kolo nedáš
-export const MAX_TOTAL_MS = 3_600_000
+export const MAX_TOTAL_MS = 7_200_000 // i pohodový let se počítá
 
 // ── KV ────────────────────────────────────────────────────────────
 export function kvEnv() {
