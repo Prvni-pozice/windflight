@@ -79,7 +79,10 @@ class Game {
 
     // nálada dne: zataženo = měkčí slunce, víc rozptylu, šedavější opar
     const cc = this.weather.cloudCover
-    const sunLight = new THREE.DirectionalLight(0xfff3dd, 2.1 * (1 - 0.45 * cc))
+    // zlatá hodinka: nízké slunce = teplé světlo (skutečný čas v Chamonix)
+    const golden = Math.max(0, Math.min(1, 1 - this.sun.elevDeg / 22))
+    const sunCol = new THREE.Color(0xfff3dd).lerp(new THREE.Color(0xffb066), golden * 0.85)
+    const sunLight = new THREE.DirectionalLight(sunCol, 2.1 * (1 - 0.45 * cc))
     sunLight.position.copy(this.sunDir).multiplyScalar(20000)
     this.scene.add(sunLight)
     this.scene.add(new THREE.HemisphereLight(0xcfe4ff, 0x8ba86e, 0.85 + 0.5 * cc))
@@ -91,6 +94,7 @@ class Game {
       uniforms: {
         uSunDir: { value: this.sunDir },
         uHaze: { value: 0.5 + this.weather.cloudCover * 0.4 },
+        uGolden: { value: golden },
       },
       vertexShader: /* glsl */`
         varying vec3 vDir;
@@ -101,14 +105,17 @@ class Game {
       fragmentShader: /* glsl */`
         uniform vec3 uSunDir;
         uniform float uHaze;
+        uniform float uGolden;
         varying vec3 vDir;
         void main() {
           float h = max(vDir.y, 0.0);
-          vec3 zenith = vec3(0.16, 0.38, 0.75);
+          vec3 zenith = mix(vec3(0.16, 0.38, 0.75), vec3(0.22, 0.3, 0.55), uGolden);
           vec3 horizon = mix(vec3(0.78, 0.86, 0.93), vec3(0.85, 0.88, 0.9), uHaze);
+          horizon = mix(horizon, vec3(0.98, 0.72, 0.45), uGolden * 0.75); // západ/východ
           vec3 col = mix(horizon, zenith, pow(h, 0.5));
           float s = max(dot(vDir, uSunDir), 0.0);
-          col += vec3(1.0, 0.93, 0.8) * (pow(s, 800.0) * 1.4 + pow(s, 32.0) * 0.18);
+          vec3 sunTint = mix(vec3(1.0, 0.93, 0.8), vec3(1.0, 0.62, 0.3), uGolden);
+          col += sunTint * (pow(s, 800.0) * 1.4 + pow(s, 32.0) * (0.18 + uGolden * 0.25));
           col = mix(col, vec3(0.72, 0.78, 0.83), smoothstep(0.02, -0.1, vDir.y));
           gl_FragColor = vec4(col, 1.0);
         }`,

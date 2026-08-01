@@ -211,6 +211,14 @@ export class FlightControls {
       pitch += -this.stick.dy
     }
 
+    // gamepad: levá páčka (deadzone 0.15), zatažení = stoupat
+    const gp = typeof navigator !== 'undefined' && navigator.getGamepads && navigator.getGamepads()[0]
+    if (gp) {
+      const dz = v => Math.abs(v) < 0.15 ? 0 : v
+      roll += dz(gp.axes[0] || 0)
+      pitch += -dz(gp.axes[1] || 0)
+    }
+
     // klávesnice — LETECKY: šipka dolů = přitáhnout (stoupá), nahoru = potlačit
     if (this.keys.ArrowUp) pitch -= 1
     if (this.keys.ArrowDown) pitch += 1
@@ -223,8 +231,9 @@ export class FlightControls {
     // neproběhla, tilt neřídí (jinak by prvních ~1 s řídil špatný neutrál).
     if (this.tiltActive && this.tilt.beta != null && this.neutralB != null && this._calRemaining === 0) {
       const { b, g } = this._orientedTilt()
-      // náklon k sobě (beta > neutral) = stoupat, od sebe = klesat
-      pitch += Math.max(-1, Math.min(1, (b - this.neutralB) / 44))
+      // náklon k sobě (beta > neutral) = přitáhnout = STOUPAT → záporný pitch
+      // (v této hře pitch +1 = potlačeno/rychle); dřív obráceně = zmatek
+      pitch -= Math.max(-1, Math.min(1, (b - this.neutralB) / 44))
       roll += Math.max(-1, Math.min(1, (g - this.neutralG) / 50))
     }
 
