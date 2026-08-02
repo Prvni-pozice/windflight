@@ -95,10 +95,29 @@ export class LiftField {
 
     // 2) zbytek mapy — volná krajina (ať se dá létat i mimo trať)
     for (const c of candidates) {
-      if (this.thermals.length >= 46) break
-      if (this.thermals.some(q => Math.hypot(q.x - c.x, q.z - c.z) < 1050)) continue
+      if (this.thermals.length >= 64) break
+      if (this.thermals.some(q => Math.hypot(q.x - c.x, q.z - c.z) < 880)) continue
       add(c)
     }
+  }
+
+  /** Nejbližší použitelná termika (jádro v mé výšce, strop nade mnou). */
+  nearestThermal(pos) {
+    const wind = this.cond.windVec
+    const wl = Math.max(1, wind.length())
+    let best = null, bestD = Infinity
+    for (const th of this.thermals) {
+      if (th.top < pos.y + 120) continue // už by mě nezvedla
+      const drift = Math.max(0, pos.y - th.ground) * 0.11
+      const cx = th.x + wind.x * drift / wl
+      const cz = th.z + wind.z * drift / wl
+      const d = Math.hypot(pos.x - cx, pos.z - cz)
+      if (d < bestD) {
+        bestD = d
+        best = { x: cx, y: Math.min(th.top - 100, Math.max(pos.y, th.ground + 400)), z: cz, d }
+      }
+    }
+    return best
   }
 
   /** Vertikální rychlost vzduchu v bodě (m/s, + nahoru) */

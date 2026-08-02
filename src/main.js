@@ -11,6 +11,7 @@ import { Vario } from './vario.js'
 import { FlightControls } from './controls.js'
 import { UI } from './ui.js'
 import { buildScenery } from './scenery.js'
+import { buildForest } from './trees.js'
 
 const START = { lat: 45.9290, lon: 6.8560, alt: 2600, headingDeg: 20 } // nad Chamonix, čelem k Bréventu
 
@@ -134,6 +135,7 @@ class Game {
 
     this.terrain.addTo(this.scene)
     buildScenery(this.scene, this.terrain)
+    buildForest(this.scene, this.terrain)
 
     // silueta dalekých hřebenů na obzoru (prstenec zubatého pásu v oparu)
     {
@@ -265,6 +267,7 @@ class Game {
       this.vario.update(this.glider.vario, dt)
       this.vario.updateWind(this.glider.v, this.glider.stalled > 0)
       this._updateGateMarker()
+      this._updateThermalMarker()
       this.ui.updateMinimap(this.glider.pos, this.glider.heading, this.gates.current)
 
       // 20s průměrovač varia (co mi ta termika reálně dává?)
@@ -325,6 +328,26 @@ class Game {
     _lookTarget.set(g.pos.x + sh * 60, g.pos.y - 4, g.pos.z - ch * 60)
     this.camera.lookAt(_lookTarget)
     this.camera.rotation.z += -g.bank * 0.35 // náklon horizontu v zatáčce
+  }
+
+  // marker nejbližšího použitelného stoupáku (🌀) — navádění na termiku
+  _updateThermalMarker() {
+    const el = document.getElementById('thermal-marker')
+    const th = this.lift.nearestThermal(this.glider.pos)
+    if (!th || th.d < 220) { el.style.display = 'none'; return } // v termice netřeba
+    _proj.set(th.x, th.y, th.z).project(this.camera)
+    if (_proj.z > 1) { el.style.display = 'none'; return } // za zády: neukazovat (nemást s bránou)
+    const sx = (_proj.x * 0.5 + 0.5) * innerWidth
+    const sy = (-_proj.y * 0.5 + 0.5) * innerHeight
+    const pad = 26
+    if (sx < pad || sx > innerWidth - pad || sy < pad || sy > innerHeight - pad) {
+      el.style.display = 'none'
+      return
+    }
+    el.style.display = 'flex'
+    el.style.left = sx + 'px'
+    el.style.top = sy + 'px'
+    el.querySelector('.dist').textContent = th.d > 1500 ? (th.d / 1000).toFixed(1) + ' km' : Math.round(th.d) + ' m'
   }
 
   _updateGateMarker() {

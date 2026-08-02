@@ -110,17 +110,31 @@
     /* ── HUD ── */
     #hud {
       position: fixed; top: env(safe-area-inset-top, 0); left: 0; right: 0; z-index: 10;
-      display: none; justify-content: center; gap: 10px; padding: 10px;
+      display: none; justify-content: center; gap: 8px; padding: 8px;
       pointer-events: none; color: #fff; font-variant-numeric: tabular-nums;
-      flex-wrap: wrap;
+      flex-wrap: nowrap; /* ukazatele NIKDY nepřeskakují na další řádek */
     }
     #hud.visible { display: flex; }
     .pill {
       background: rgba(8, 20, 32, 0.55); border: 1px solid rgba(255, 255, 255, 0.14);
-      border-radius: 999px; padding: 7px 15px; font-size: 1rem; font-weight: 600;
+      border-radius: 999px; padding: 7px 13px; font-size: 1rem; font-weight: 600;
       backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px);
+      flex: 0 0 auto; white-space: nowrap;
     }
     .pill small { font-weight: 400; opacity: 0.6; margin-right: 5px; font-size: 0.78rem; }
+    /* pevné šířky číselných polí — hodnota se mění, pill nedýchá */
+    #hud-time { display: inline-block; min-width: 4.1ch; text-align: right; }
+    #hud-speed { display: inline-block; min-width: 3ch; text-align: right; }
+    #hud-alt { display: inline-block; min-width: 4ch; text-align: right; }
+    #hud-agl { display: inline-block; min-width: 4ch; text-align: right; }
+    #hud-vario { display: inline-block; min-width: 4.2ch; text-align: right; }
+    #hud-vario-avg { display: inline-block; min-width: 4.2ch; text-align: right; }
+    #hud-stf { display: inline-block; min-width: 3ch; text-align: right; }
+    @media (max-width: 760px) {
+      .pill { font-size: 0.82rem; padding: 5px 9px; }
+      .pill small { font-size: 0.64rem; margin-right: 3px; }
+      #hud { gap: 5px; padding: 6px 4px; }
+    }
     #hud-vario.up { color: #7dffb0; }
     #hud-vario.down { color: #ff9c8f; }
     #hud-agl.low { color: #ffb02e; }
@@ -153,6 +167,15 @@
       transform: translate(-50%, -50%); flex-direction: column; align-items: center;
     }
     #gate-marker .ring { font-size: 1.9rem; filter: drop-shadow(0 1px 4px rgba(0,0,0,0.7)); }
+    #thermal-marker {
+      position: fixed; z-index: 9; pointer-events: none; display: none;
+      transform: translate(-50%, -50%); flex-direction: column; align-items: center;
+    }
+    #thermal-marker .ic { font-size: 1.5rem; filter: drop-shadow(0 1px 4px rgba(0,0,0,0.7)); }
+    #thermal-marker .dist {
+      font-size: 0.7rem; color: #c8ecff; background: rgba(12, 42, 64, 0.6);
+      padding: 1px 6px; border-radius: 8px; margin-top: 2px; font-variant-numeric: tabular-nums;
+    }
 
     #gate-flash {
       position: fixed; top: 24%; left: 0; right: 0; z-index: 11; text-align: center;
@@ -251,6 +274,7 @@
   <canvas id="minimap" style="display:none; position:fixed; left:12px; bottom:calc(60px + env(safe-area-inset-bottom,0)); z-index:10; border-radius:10px; border:1px solid rgba(255,255,255,0.25); opacity:0.92;"></canvas>
   <div id="gate-info" style="display:none"></div>
   <div id="gate-marker"><span class="ring">⭘</span></div>
+  <div id="thermal-marker"><span class="ic">🌀</span><span class="dist"></span></div>
   <div id="gate-flash"></div>
   <div id="stall-warn">⚠ MALÁ RYCHLOST — potlač!</div>
   <div id="tilt-hint">Dvojklepem kdykoli zkalibruješ neutrální držení telefonu</div>

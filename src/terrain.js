@@ -120,20 +120,33 @@ export class Terrain {
 
     // 2) detailní šumová textura (struktura zblízka)
     const dc = document.createElement('canvas')
-    dc.width = dc.height = 256
+    dc.width = dc.height = 512
     const dctx = dc.getContext('2d')
-    const dimg = dctx.createImageData(256, 256)
+    const dimg = dctx.createImageData(512, 512)
     let seed = 12345
     const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647
-    for (let i = 0; i < 256 * 256; i++) {
-      const v = 215 + rnd() * 40
-      dimg.data[i * 4] = v; dimg.data[i * 4 + 1] = v; dimg.data[i * 4 + 2] = v
-      dimg.data[i * 4 + 3] = 255
+    // dvě oktávy: hrubé skvrny (interpolace mřížky 32×32) + jemné zrno
+    const G = 33
+    const grid = new Float32Array(G * G)
+    for (let i = 0; i < G * G; i++) grid[i] = rnd()
+    for (let y = 0; y < 512; y++) {
+      for (let x = 0; x < 512; x++) {
+        const fx = x / 512 * (G - 1), fy = y / 512 * (G - 1)
+        const x0 = fx | 0, y0 = fy | 0, tx = fx - x0, ty = fy - y0
+        const coarse =
+          grid[y0 * G + x0] * (1 - tx) * (1 - ty) + grid[y0 * G + x0 + 1] * tx * (1 - ty) +
+          grid[(y0 + 1) * G + x0] * (1 - tx) * ty + grid[(y0 + 1) * G + x0 + 1] * tx * ty
+        const v = 196 + coarse * 44 + rnd() * 28
+        const i = (y * 512 + x) * 4
+        dimg.data[i] = v; dimg.data[i + 1] = v; dimg.data[i + 2] = v
+        dimg.data[i + 3] = 255
+      }
     }
     dctx.putImageData(dimg, 0, 0)
     const detail = new THREE.CanvasTexture(dc)
     detail.wrapS = detail.wrapT = THREE.RepeatWrapping
-    detail.repeat.set(this.sizeX / 340, this.sizeZ / 340)
+    detail.repeat.set(this.sizeX / 260, this.sizeZ / 260)
+    detail.anisotropy = 4
     const mat = new THREE.MeshLambertMaterial({ vertexColors: true, map: detail })
 
     // 3) mřížka rozřezaná na 4×4 dlaždice → frustum culling (kreslí se jen
