@@ -137,6 +137,19 @@ export class LiftField {
     return w
   }
 
+  /** Měkký kulatý sprite (radiální gradient) pro Points. */
+  _softSprite(rgb = '255,242,200') {
+    const c = document.createElement('canvas')
+    c.width = c.height = 32
+    const ctx = c.getContext('2d')
+    const g = ctx.createRadialGradient(16, 16, 1, 16, 16, 15)
+    g.addColorStop(0, `rgba(${rgb},0.9)`)
+    g.addColorStop(1, `rgba(${rgb},0)`)
+    ctx.fillStyle = g
+    ctx.fillRect(0, 0, 32, 32)
+    return new THREE.CanvasTexture(c)
+  }
+
   // ── vizualizace: částicové sloupce + kumulus + ptáci ──
   _buildThermalViz(rng) {
     const P_PER = (typeof matchMedia !== 'undefined' && matchMedia('(pointer: coarse)').matches) ? 14 : 26
@@ -159,10 +172,13 @@ export class LiftField {
     const geo = new THREE.BufferGeometry()
     geo.setAttribute('position', new THREE.BufferAttribute(positions, 3))
     this.particles = new THREE.Points(geo, new THREE.PointsMaterial({
-      color: 0xfff2c8, size: 26, transparent: true, opacity: 0.55,
-      sizeAttenuation: true, depthWrite: false,
+      color: 0xffffff, size: 30, transparent: true, opacity: 0.6,
+      map: this._softSprite('255,242,200'), sizeAttenuation: true, depthWrite: false,
     }))
     this.group.add(this.particles)
+
+    // svahové proudění: proudící částice na návětrných svazích (vidět, kde zvedá)
+    this._buildRidgeViz(rng)
 
     // kumulus nad každou termikou (pár koulí) — ukazuje strop stoupání
     this.clouds = []
@@ -218,6 +234,42 @@ export class LiftField {
     }
   }
 
+  _buildRidgeViz(rng) {
+    this.ridgeSites = []
+    const wind = this.cond.windVec
+    if (wind.length() < 2) { this.ridge = null; return }
+    const t = this.terrain
+    for (let gz = 1200; gz < t.sizeZ - 1200 && this.ridgeSites.length < 240; gz += 620) {
+      for (let gx = 1200; gx < t.sizeX - 1200 && this.ridgeSites.length < 240; gx += 620) {
+        const n = t.normalAt(gx, gz)
+        const upslope = -(wind.x * n.x + wind.z * n.z)
+        if (upslope < 1.4) continue
+        const h = t.heightAt(gx, gz)
+        if (h < 1100 || h > 3400) continue
+        // směr po svahu nahoru (proti gradientu)
+        const len = Math.hypot(n.x, n.z) || 1
+        this.ridgeSites.push({
+          x: gx + (rng() - 0.5) * 300, z: gz + (rng() - 0.5) * 300,
+          dx: -n.x / len, dz: -n.z / len, s: Math.min(3, upslope),
+        })
+      }
+    }
+    const P = 3
+    const count = this.ridgeSites.length * P
+    if (!count) { this.ridge = null; return }
+    this._ridgeP = P
+    const pos = new Float32Array(count * 3)
+    this.ridgePhase = new Float32Array(count)
+    for (let i = 0; i < count; i++) this.ridgePhase[i] = rng()
+    const geo2 = new THREE.BufferGeometry()
+    geo2.setAttribute('position', new THREE.BufferAttribute(pos, 3))
+    this.ridge = new THREE.Points(geo2, new THREE.PointsMaterial({
+      color: 0xffffff, size: 20, transparent: true, opacity: 0.34,
+      map: this._softSprite('214,232,248'), sizeAttenuation: true, depthWrite: false,
+    }))
+    this.group.add(this.ridge)
+  }
+
   update(dt) {
     this.time += dt
     const pos = this.particles.geometry.attributes.position
@@ -257,6 +309,22 @@ export class LiftField {
       cl.traverse(o => { if (o.isMesh) o.material.opacity = 0.92 * (0.35 + 0.65 * op) })
       const sc2 = 0.7 + op * 0.4
       cl.scale.set(sc2, sc2, sc2)
+    }
+
+    // svahové částice: kloužou po svahu vzhůru a rozpouštějí se
+    if (this.ridge) {
+      const rp = this.ridge.geometry.attributes.position
+      for (let i = 0; i < this.ridgePhase.length; i++) {
+        const site = this.ridgeSites[(i / this._ridgeP) | 0]
+        const f = (this.time * 0.12 * site.s + this.ridgePhase[i]) % 1
+        const dist = f * 620
+        const x = site.x + site.dx * dist
+        const z = site.z + site.dz * dist
+        rp.array[i * 3] = x
+        rp.array[i * 3 + 1] = this.terrain.heightAt(x, z) + 26 + f * 90
+        rp.array[i * 3 + 2] = z
+      }
+      rp.needsUpdate = true
     }
 
     for (const grp of this.birds) {
