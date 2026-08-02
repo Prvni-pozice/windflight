@@ -166,6 +166,42 @@ export class Glider {
     scene.add(this.shadow)
   }
 
+  /** Vlečky z konců křídel — viditelné při rychlém letu / utažené zatáčce. */
+  initTrails(scene) {
+    this.trails = []
+    for (const side of [-1, 1]) {
+      const N = 50
+      const pos = new Float32Array(N * 3)
+      const geo = new THREE.BufferGeometry()
+      geo.setAttribute('position', new THREE.BufferAttribute(pos, 3))
+      const line = new THREE.Line(geo, new THREE.LineBasicMaterial({
+        color: 0xffffff, transparent: true, opacity: 0,
+      }))
+      line.frustumCulled = false
+      scene.add(line)
+      this.trails.push({ line, pts: [], side, tip: new THREE.Vector3() })
+    }
+  }
+
+  updateTrails() {
+    if (!this.trails) return
+    const show = this.v > 36 || Math.abs(this.bank) > 0.72
+    for (const tr of this.trails) {
+      tr.tip.set(tr.side * 7.35, 0.3, -1.45)
+      this.model.localToWorld(tr.tip)
+      tr.pts.push(tr.tip.clone())
+      if (tr.pts.length > 50) tr.pts.shift()
+      const arr = tr.line.geometry.attributes.position.array
+      for (let i = 0; i < 50; i++) {
+        const p = tr.pts[Math.min(i, tr.pts.length - 1)] || tr.tip
+        arr[i * 3] = p.x; arr[i * 3 + 1] = p.y; arr[i * 3 + 2] = p.z
+      }
+      tr.line.geometry.attributes.position.needsUpdate = true
+      const target = show ? 0.42 : 0
+      tr.line.material.opacity += (target - tr.line.material.opacity) * 0.12
+    }
+  }
+
   /** Stín: na terén pod kluzákem, slábne a roste s výškou. */
   updateShadow(terrain) {
     const gy = terrain.heightAt(this.pos.x, this.pos.z)

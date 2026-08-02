@@ -27,6 +27,11 @@ class Game {
     this.controls = new FlightControls()
     this.vario = new Vario()
     this.glider = new Glider(this.scene)
+    this.glider.initTrails(this.scene)
+    this._camZoom = 1
+    addEventListener('wheel', e => {
+      this._camZoom = Math.max(0.6, Math.min(2.1, this._camZoom + e.deltaY * 0.0011))
+    }, { passive: true })
 
     this.ui = new UI({
       weatherLabel: `${weather.label} · vítr ${Math.round(weather.windSpeed)} m/s ` +
@@ -255,6 +260,7 @@ class Game {
         slow: this.glider.v < V_STALL + 2.5,
         headingDeg: this.glider.heading * 180 / Math.PI,
         windDirDeg: this.weather.windDirDeg,
+        stfKmh: (27 + Math.max(0, -(this.glider.vario + 0.6)) * 3.6) * 3.6,
       })
       this.vario.update(this.glider.vario, dt)
       this.vario.updateWind(this.glider.v, this.glider.stalled > 0)
@@ -277,6 +283,7 @@ class Game {
     this.lift.update(dt)
     this.gates.update(t)
     this.glider.updateShadow(this.terrain)
+    this.glider.updateTrails()
     this._updateCamera(dt)
 
     // FOV dýchá s rychlostí (pocit svištění)
@@ -306,7 +313,7 @@ class Game {
     }
     // chase kamera za kluzákem, jemně zpožděná, výš při pohledu do údolí
     const g = this.glider
-    const back = 26 + g.v * 0.25
+    const back = (26 + g.v * 0.25) * (this._camZoom || 1)
     const sh = Math.sin(g.heading), ch = Math.cos(g.heading)
     _camTarget.set(
       g.pos.x - sh * back,
