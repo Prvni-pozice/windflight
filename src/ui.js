@@ -26,6 +26,7 @@ export class UI {
     this.lastBoard = null
 
     document.getElementById('weather-line').textContent = weatherLabel
+    this.weatherLabel = weatherLabel
     for (const el of document.querySelectorAll('.gate-n')) el.textContent = gateTotal
 
     document.getElementById('start-btn').addEventListener('click', onStart)
@@ -246,6 +247,7 @@ export class UI {
     const rec = !prev || ms < prev
     if (rec) localStorage.setItem(BEST_KEY, String(Math.round(ms)))
     document.getElementById('final-time').textContent = formatTime(ms)
+    document.getElementById('win-cond').textContent = this.weatherLabel
     document.getElementById('record-badge').classList.toggle('show', rec)
     this.saveScoreBox.classList.remove('done')
     this.saveStatus.textContent = ''

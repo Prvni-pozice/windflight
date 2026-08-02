@@ -58,12 +58,12 @@ export class Terrain {
 
   _buildMesh() {
     const { gw, gh } = this
-    const geo = new THREE.PlaneGeometry(this.sizeX, this.sizeZ, gw - 1, gh - 1)
-    geo.rotateX(-Math.PI / 2) // do roviny XZ, +z k jihu (řádky jdou od severu)
-    geo.translate(this.sizeX / 2, 0, this.sizeZ / 2)
+    const cell = this.sizeX / (gw - 1)
 
-    const pos = geo.attributes.position
-    const colors = new Float32Array(pos.count * 3)
+    // 1) barvy + výšky + ANALYTICKÉ normály pro celou mřížku (normály ze
+    //    spádu heightmapy — spojité i přes hranice dlaždic, žádné švy)
+    const colors = new Float32Array(gw * gh * 3)
+    const normals = new Float32Array(gw * gh * 3)
     const c = new THREE.Color()
     const rock = new THREE.Color(0x8d8579)
     const rockDark = new THREE.Color(0x6b655c)
@@ -73,58 +73,52 @@ export class Terrain {
     const meadow = new THREE.Color(0x74a04c)
     const valley = new THREE.Color(0x8fae62)
 
-    for (let i = 0; i < pos.count; i++) {
-      const gx = i % gw, gz = (i / gw) | 0
-      const h = this.heights[gz * gw + gx]
-      pos.setY(i, h)
+    for (let gz = 0; gz < gh; gz++) {
+      for (let gx = 0; gx < gw; gx++) {
+        const i = gz * gw + gx
+        const h = this.heights[i]
+        const xl = this.heights[gz * gw + Math.max(0, gx - 1)]
+        const xr = this.heights[gz * gw + Math.min(gw - 1, gx + 1)]
+        const zu = this.heights[Math.max(0, gz - 1) * gw + gx]
+        const zd = this.heights[Math.min(gh - 1, gz + 1) * gw + gx]
+        const slope = Math.min(1, Math.hypot(xr - xl, zd - zu) / (4 * cell))
 
-      // sklon z mřížky (rychlejší než heightAt)
-      const xl = this.heights[gz * gw + Math.max(0, gx - 1)]
-      const xr = this.heights[gz * gw + Math.min(gw - 1, gx + 1)]
-      const zu = this.heights[Math.max(0, gz - 1) * gw + gx]
-      const zd = this.heights[Math.min(gh - 1, gz + 1) * gw + gx]
-      const cell = this.sizeX / (gw - 1)
-      const slope = Math.min(1, Math.hypot(xr - xl, zd - zu) / (4 * cell))
-
-      // deterministický šum ať plochy nejsou sterilní
-      const n01 = ((Math.imul(gx * 73856093 ^ gz * 19349663, 2654435761) >>> 8) & 1023) / 1023
-
-      const snowLine = 2750 + n01 * 220        // sněžná čára ~2 750–3 000 m
-      const treeLine = 1950 + n01 * 150        // hranice lesa
-      if (h > snowLine) {
-        // sníh; na mírných plochách výš ledovcový nádech
-        c.copy(snow)
-        if (slope < 0.32 && h > 3000) c.lerp(glacier, 0.55)
-        if (slope > 0.62) c.lerp(rockDark, Math.min(1, (slope - 0.62) * 2.2)) // skalní stěny nad sněžnou čárou
-      } else if (slope > 0.5) {
-        c.copy(rock).lerp(rockDark, (slope - 0.5) * 2)
-      } else if (h > treeLine) {
-        c.copy(meadow).lerp(rock, Math.min(1, (h - treeLine) / (snowLine - treeLine) * 1.15 + slope * 0.6))
-      } else {
-        c.copy(h < 1100 ? valley : forest)
-        c.lerp(forest, Math.min(1, h / treeLine))
-        c.offsetHSL(0, 0, (n01 - 0.5) * 0.05)
-        if (slope > 0.34) c.lerp(rock, (slope - 0.34) * 1.4)
-      }
-      // ledovcové splazy: vysoko položené mírné údolí (Mer de Glace)
-      if (h > 1900 && h < 2750 && slope < 0.16) c.lerp(glacier, 0.4)
-
-      // kartografický hillshade (světlo od SZ) — plastika reliéfu nezávislá
-      // na dynamickém světle; jemná, ať nepřebije barvy
-      {
-        const nx = (xl - xr) / (4 * cell), nz = (zu - zd) / (4 * cell)
+        // normála ze spádu (centrální diference)
+        const nx = (xl - xr) / (2 * cell), nz = (zu - zd) / (2 * cell)
         const inv = 1 / Math.hypot(nx, 1, nz)
-        const shade = Math.max(0, (-0.45 * nx + 0.75 + 0.45 * nz) * inv) // dot s (-0.45,0.75,0.45)
+        normals[i * 3] = nx * inv
+        normals[i * 3 + 1] = inv
+        normals[i * 3 + 2] = nz * inv
+
+        const n01 = ((Math.imul(gx * 73856093 ^ gz * 19349663, 2654435761) >>> 8) & 1023) / 1023
+        const snowLine = 2750 + n01 * 220
+        const treeLine = 1950 + n01 * 150
+        if (h > snowLine) {
+          c.copy(snow)
+          if (slope < 0.32 && h > 3000) c.lerp(glacier, 0.55)
+          if (slope > 0.62) c.lerp(rockDark, Math.min(1, (slope - 0.62) * 2.2))
+        } else if (slope > 0.5) {
+          c.copy(rock).lerp(rockDark, (slope - 0.5) * 2)
+        } else if (h > treeLine) {
+          c.copy(meadow).lerp(rock, Math.min(1, (h - treeLine) / (snowLine - treeLine) * 1.15 + slope * 0.6))
+        } else {
+          c.copy(h < 1100 ? valley : forest)
+          c.lerp(forest, Math.min(1, h / treeLine))
+          c.offsetHSL(0, 0, (n01 - 0.5) * 0.05)
+          if (slope > 0.34) c.lerp(rock, (slope - 0.34) * 1.4)
+        }
+        if (h > 1900 && h < 2750 && slope < 0.16) c.lerp(glacier, 0.4)
+
+        // hillshade od SZ
+        const shade = Math.max(0, (-0.45 * nx + 0.75 + 0.45 * nz) * inv)
         const f = 0.72 + shade * 0.42
-        c.r = Math.min(1, c.r * f); c.g = Math.min(1, c.g * f); c.b = Math.min(1, c.b * f)
+        colors[i * 3] = Math.min(1, c.r * f)
+        colors[i * 3 + 1] = Math.min(1, c.g * f)
+        colors[i * 3 + 2] = Math.min(1, c.b * f)
       }
-
-      colors[i * 3] = c.r; colors[i * 3 + 1] = c.g; colors[i * 3 + 2] = c.b
     }
-    geo.setAttribute('color', new THREE.BufferAttribute(colors, 3))
-    geo.computeVertexNormals()
 
-    // jemný šedý šum jako detail-mapa: high-freq struktura zblízka
+    // 2) detailní šumová textura (struktura zblízka)
     const dc = document.createElement('canvas')
     dc.width = dc.height = 256
     const dctx = dc.getContext('2d')
@@ -140,9 +134,60 @@ export class Terrain {
     const detail = new THREE.CanvasTexture(dc)
     detail.wrapS = detail.wrapT = THREE.RepeatWrapping
     detail.repeat.set(this.sizeX / 340, this.sizeZ / 340)
-
     const mat = new THREE.MeshLambertMaterial({ vertexColors: true, map: detail })
-    this.mesh = new THREE.Mesh(geo, mat)
+
+    // 3) mřížka rozřezaná na 4×4 dlaždice → frustum culling (kreslí se jen
+    //    to, co je ve výhledu; jeden 735k mesh se kreslil vždy celý)
+    this.mesh = new THREE.Group()
+    const CH = 4
+    const xCuts = [], zCuts = []
+    for (let k = 0; k <= CH; k++) {
+      xCuts.push(Math.round(k * (gw - 1) / CH))
+      zCuts.push(Math.round(k * (gh - 1) / CH))
+    }
+    for (let cz = 0; cz < CH; cz++) {
+      for (let cx = 0; cx < CH; cx++) {
+        const x0 = xCuts[cx], x1 = xCuts[cx + 1]
+        const z0 = zCuts[cz], z1 = zCuts[cz + 1]
+        const w = x1 - x0 + 1, hgt = z1 - z0 + 1
+        const pos = new Float32Array(w * hgt * 3)
+        const nor = new Float32Array(w * hgt * 3)
+        const col = new Float32Array(w * hgt * 3)
+        const uv = new Float32Array(w * hgt * 2)
+        let vi = 0
+        for (let gz = z0; gz <= z1; gz++) {
+          for (let gx = x0; gx <= x1; gx++) {
+            const gi = gz * gw + gx
+            pos[vi * 3] = gx / (gw - 1) * this.sizeX
+            pos[vi * 3 + 1] = this.heights[gi]
+            pos[vi * 3 + 2] = gz / (gh - 1) * this.sizeZ
+            nor[vi * 3] = normals[gi * 3]
+            nor[vi * 3 + 1] = normals[gi * 3 + 1]
+            nor[vi * 3 + 2] = normals[gi * 3 + 2]
+            col[vi * 3] = colors[gi * 3]
+            col[vi * 3 + 1] = colors[gi * 3 + 1]
+            col[vi * 3 + 2] = colors[gi * 3 + 2]
+            uv[vi * 2] = gx / (gw - 1)
+            uv[vi * 2 + 1] = 1 - gz / (gh - 1)
+            vi++
+          }
+        }
+        const idx = []
+        for (let r = 0; r < hgt - 1; r++) {
+          for (let q = 0; q < w - 1; q++) {
+            const a = r * w + q
+            idx.push(a, a + w, a + 1, a + 1, a + w, a + w + 1)
+          }
+        }
+        const geo = new THREE.BufferGeometry()
+        geo.setAttribute('position', new THREE.BufferAttribute(pos, 3))
+        geo.setAttribute('normal', new THREE.BufferAttribute(nor, 3))
+        geo.setAttribute('color', new THREE.BufferAttribute(col, 3))
+        geo.setAttribute('uv', new THREE.BufferAttribute(uv, 2))
+        geo.setIndex(idx)
+        this.mesh.add(new THREE.Mesh(geo, mat))
+      }
+    }
 
     // okolní "svět" pod okrajem mapy, ať není vidět do prázdna
     this.skirt = new THREE.Mesh(
