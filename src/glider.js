@@ -23,6 +23,7 @@ export class Glider {
     this.pos = new THREE.Vector3()
     this.heading = 0        // rad, 0 = sever (−z), kladně po směru hodin
     this.bank = 0           // rad, kladně doprava
+    this.theta = 0          // letová poloha (podélný sklon), + = nos dolů
     this.v = 28             // vzdušná rychlost m/s
     this.vario = 0          // aktuální vertikální rychlost m/s
     this.stalled = 0        // >0 = zbývající čas přetažení
@@ -35,9 +36,11 @@ export class Glider {
     this.pos.copy(pos)
     this.heading = heading
     this.bank = 0
+    this.theta = 0
     this.v = 28
     this.vario = 0
     this.stalled = 0
+    this._stallSink = 0
     this.crashed = false
     if (this.model) {
       this.model.position.copy(pos)
@@ -46,39 +49,62 @@ export class Glider {
     }
   }
 
-  /** @param input {pitch,roll} -1..1; lift = svislá rychlost vzduchu; wind = vektor větru */
+  /** @param input {pitch,roll} -1..1; lift = svislá rychlost vzduchu; wind = vektor větru
+   *
+   * Podélná dynamika se SETRVAČNOSTÍ:
+   *  - stav `theta` (podélný sklon) se k požadavku blíží omezenou úhlovou
+   *    rychlostí — letadlo nikdy "necvakne" do nové polohy
+   *  - účinnost kormidel roste s dynamickým tlakem (~v²): pod pádovkou jsou
+   *    kormidla měkká, kontrola se vrací až s rychlostí
+   *  - rychlost se k rovnovážné pro daný sklon blíží pomalu (nabírání trvá)
+   *  - přetažení: nos padá SÁM, řízení skoro nefunguje, zotavení = až je
+   *    rychlost zpět a odezní (žádné skákání nahoru-dolů jako hračka)
+   */
   update(dt, input, lift, wind, terrain) {
     if (this.crashed) return
 
-    // náklon: plynule k cíli daném vstupem (max 55°)
-    const bankTarget = input.roll * 0.96
-    this.bank += (bankTarget - this.bank) * Math.min(1, dt * 3.2)
+    // účinnost kormidel podle rychlosti (dynamický tlak)
+    const eff = Math.min(1, (this.v / 24) ** 2)
 
-    // cílová rychlost z pitche: potlačit = zrychlit, přitáhnout = zpomalit
-    let vTarget = 27 + input.pitch * 16 // pitch +1 (potlačeno) → 43, −1 → 11 (pod pádovku!)
-    vTarget = Math.max(12, Math.min(V_MAX, vTarget))
+    // náklon: pomalejší při malé rychlosti, v přetažení skoro neřídí
+    const bankTarget = input.roll * 0.96 * (this.stalled > 0 ? 0.25 : 1)
+    this.bank += (bankTarget - this.bank) * Math.min(1, dt * (0.7 + 2.6 * eff))
 
-    // přetažení
+    // požadovaný podélný sklon (+ = nos dolů → rychleji)
+    let thetaTarget = input.pitch * 0.40
     if (this.stalled > 0) {
       this.stalled -= dt
-      vTarget = 30 // čumák dolů, nabrat rychlost
-      this.bank += Math.sin(performance.now() * 0.01) * 0.4 * dt
+      thetaTarget = 0.5 // nos padá sám, dokud se neobnoví proudění
+      this.bank += Math.sin(performance.now() * 0.006) * 0.22 * dt // buffet
+      if (this.v > V_STALL + 3 && this.stalled > 0.6) this.stalled = 0.6 // rychlost zpět → dozotavení
     } else if (this.v < V_STALL) {
-      this.stalled = 1.6
+      this.stalled = 2.4
     }
 
-    // výměna energie: zrychlování bere výšku, zpomalování ji chvilku vrací
-    const dv = (vTarget - this.v) * Math.min(1, dt * 0.9)
+    // setrvačnost v klopení: omezená úhlová rychlost, měkká kormidla pomalu
+    const maxRate = 0.85 * (0.3 + 0.7 * eff) // rad/s
+    let dTh = (thetaTarget - this.theta) * Math.min(1, dt * 2.0)
+    dTh = Math.max(-maxRate * dt, Math.min(maxRate * dt, dTh))
+    this.theta += dTh
+
+    // rychlost: pomalu k rovnovážné pro daný sklon; podélné zrychlení
+    // omezeno na ~1/3 g (větroň není auto — nabírání/vybíjení trvá)
+    const vEq = Math.max(9, Math.min(V_MAX, 27 + (this.theta / 0.40) * 17))
+    const accel = Math.max(-3.2, Math.min(3.2, (vEq - this.v) * 0.45))
+    const dv = accel * dt
     this.v += dv
-    const zoom = -(this.v * dv) / (G * Math.max(dt, 1e-4)) * dt // dh = −v·dv/g
+    const zoom = -(this.v * dv) / G // dh = −v·dv/g (výměna energie)
 
     // zatáčka
     if (this.v > 4) this.heading += G * Math.tan(this.bank) / this.v * dt
 
-    // opadání (v náklonu horší) + prostředí
+    // opadání (v náklonu horší) + prostředí; propad z přetažení nabíhá
+    // plynule (odtržení proudění není skokové) — žádné cuknutí
     const sink = polarSink(this.v) * Math.pow(1 / Math.max(0.35, Math.cos(this.bank)), 1.5)
-    const wAir = lift - sink + (this.stalled > 0 ? -2.6 : 0)
-    this.vario = wAir + zoom / Math.max(dt, 1e-4) * 0 // zobrazujeme vzduch+poláru; zoom jde přímo do výšky
+    const stallTarget = this.stalled > 0 ? -2.8 : 0
+    this._stallSink += (stallTarget - this._stallSink) * Math.min(1, dt * 2.2)
+    const wAir = lift - sink + this._stallSink
+    this.vario = wAir
 
     // pohyb: vzdušný vektor + vítr
     const sh = Math.sin(this.heading), ch = Math.cos(this.heading)
@@ -93,12 +119,11 @@ export class Glider {
       this.crashed = true
     }
 
-    // vizuální model
-    const pitchVis = Math.atan2(-(vTarget - 27), 34) * 0.9 + (this.stalled > 0 ? -0.35 : 0)
+    // vizuální model = skutečná letová poloha
     this.model.position.copy(this.pos)
     this.model.rotation.set(0, 0, 0)
     this.model.rotateY(-this.heading)
-    this.model.rotateX(pitchVis)
+    this.model.rotateX(this.theta * 1.15 + (this.stalled > 0 ? 0.08 * Math.sin(performance.now() * 0.008) : 0))
     this.model.rotateZ(-this.bank)
   }
 

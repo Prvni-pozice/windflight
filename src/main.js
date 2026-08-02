@@ -11,7 +11,7 @@ import { Vario } from './vario.js'
 import { FlightControls } from './controls.js'
 import { UI } from './ui.js'
 import { buildScenery } from './scenery.js'
-import { buildForest } from './trees.js'
+import { Forest } from './trees.js'
 
 const START = { lat: 45.9290, lon: 6.8560, alt: 2600, headingDeg: 20 } // nad Chamonix, čelem k Bréventu
 
@@ -135,7 +135,7 @@ class Game {
 
     this.terrain.addTo(this.scene)
     buildScenery(this.scene, this.terrain)
-    buildForest(this.scene, this.terrain)
+    this.forest = new Forest(this.scene, this.terrain)
 
     // silueta dalekých hřebenů na obzoru (prstenec zubatého pásu v oparu)
     {
@@ -287,6 +287,7 @@ class Game {
     this.gates.update(t)
     this.glider.updateShadow(this.terrain)
     this.glider.updateTrails()
+    this.forest.update(this.camera.position.x, this.camera.position.z)
     this._updateCamera(dt)
 
     // FOV dýchá s rychlostí (pocit svištění)

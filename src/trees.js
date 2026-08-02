@@ -17,11 +17,73 @@ const TOWN_CLEAR = [
   [45.9237, 6.8694, 950], [45.9790, 6.9260, 550], [45.8905, 6.7990, 600], [45.9450, 6.8880, 350],
 ]
 
-export function buildForest(scene, terrain) {
-  const rng = mulberry32(4242)
-  const isTouch = typeof matchMedia !== 'undefined' && matchMedia('(pointer: coarse)').matches
-  const COUNT = isTouch ? 12000 : 26000
+export class Forest {
+  constructor(scene, terrain) {
+    this.terrain = terrain
+    const isTouch = typeof matchMedia !== 'undefined' && matchMedia('(pointer: coarse)').matches
+    this.NEAR = isTouch ? 9000 : 22000
+    this.CELL = 400
+    this.R = isTouch ? 1500 : 2300
+    this.perCell = Math.floor(this.NEAR / ((Math.ceil(this.R / this.CELL) * 2 + 1) ** 2) * 1.35)
+    this.towns = TOWN_CLEAR.map(([lat, lon, r]) => ({ ...terrain.fromLatLon(lat, lon), r }))
 
+    const { geo, mat } = buildTreeAssets()
+    // blízká HUSTÁ vrstva: instance se přeskládají, když kamera opustí buňku
+    this.near = new THREE.InstancedMesh(geo, mat, this.NEAR)
+    this.near.frustumCulled = false
+    this.near.instanceMatrix.setUsage(THREE.DynamicDrawUsage)
+    scene.add(this.near)
+    this._lastCell = null
+    // dálková řídká vrstva (větší siluety, statická) — les je vidět i z výšky
+    buildFarLayer(scene, terrain, this.towns, isTouch ? 7000 : 14000)
+  }
+
+  update(camX, camZ) {
+    const ccx = Math.floor(camX / this.CELL), ccz = Math.floor(camZ / this.CELL)
+    if (this._lastCell && ccx === this._lastCell[0] && ccz === this._lastCell[1]) return
+    this._lastCell = [ccx, ccz]
+    const t = this.terrain
+    const m = new THREE.Matrix4()
+    const q = new THREE.Quaternion()
+    const up = new THREE.Vector3(0, 1, 0)
+    const sc = new THREE.Vector3()
+    const range = Math.ceil(this.R / this.CELL)
+    let i = 0
+    for (let dz = -range; dz <= range && i < this.NEAR; dz++) {
+      for (let dx = -range; dx <= range && i < this.NEAR; dx++) {
+        const gx = ccx + dx, gz = ccz + dz
+        // deterministický les: stejná buňka = stejné stromy (žádné blikání)
+        const rng = mulberry32(((gx * 73856093) ^ (gz * 19349663)) >>> 0)
+        for (let k = 0; k < this.perCell && i < this.NEAR; k++) {
+          const x = (gx + rng()) * this.CELL
+          const z = (gz + rng()) * this.CELL
+          const rr = rng(), rs = rng()
+          if (x < 200 || z < 200 || x > t.sizeX - 200 || z > t.sizeZ - 200) continue
+          const h = t.heightAt(x, z)
+          if (h < 720 || h > 2000) continue
+          const { slope } = t.slopeAspect(x, z)
+          if (slope > 0.55) continue
+          const density = h > 1800 ? (2000 - h) / 200 : 1
+          if (rr > density) continue
+          if (this.towns.some(tw => Math.hypot(tw.x - x, tw.z - z) < tw.r)) continue
+          const s = 0.7 + rs * 0.7
+          q.setFromAxisAngle(up, rr * Math.PI * 2)
+          sc.set(s, s * (0.9 + rr * 0.3), s)
+          m.compose(_v.set(x, h - 1, z), q, sc)
+          this.near.setMatrixAt(i, m)
+          i++
+        }
+      }
+    }
+    this.near.count = i
+    this.near.instanceMatrix.needsUpdate = true
+  }
+}
+
+const _v = new THREE.Vector3()
+
+function buildTreeAssets() {
+  const rng = mulberry32(4242)
   // textura smrku: tmavý jehlan s roztřepenými patry
   const c = document.createElement('canvas')
   c.width = 64; c.height = 128
@@ -54,13 +116,18 @@ export function buildForest(scene, terrain) {
   const mat = new THREE.MeshLambertMaterial({
     map: tex, alphaTest: 0.45, side: THREE.DoubleSide,
   })
+  return { geo, mat }
+}
+
+// dálková vrstva: řídší, větší siluety po celé mapě
+function buildFarLayer(scene, terrain, towns, COUNT) {
+  const rng = mulberry32(989898)
+  const { geo, mat } = buildTreeAssets()
   const mesh = new THREE.InstancedMesh(geo, mat, COUNT)
   const m = new THREE.Matrix4()
   const q = new THREE.Quaternion()
   const up = new THREE.Vector3(0, 1, 0)
   const sc = new THREE.Vector3()
-  const towns = TOWN_CLEAR.map(([lat, lon, r]) => ({ ...terrain.fromLatLon(lat, lon), r }))
-
   let i = 0
   let guard = 0
   while (i < COUNT && guard++ < COUNT * 12) {
@@ -70,22 +137,20 @@ export function buildForest(scene, terrain) {
     if (h < 720 || h > 2000) continue
     const { slope } = terrain.slopeAspect(x, z)
     if (slope > 0.55) continue
-    // hustota: plné lesy 1000–1800 m, řídne k hranici lesa
     const density = h > 1800 ? (2000 - h) / 200 : 1
     if (rng() > density) continue
     if (towns.some(t => Math.hypot(t.x - x, t.z - z) < t.r)) continue
-    const s = 0.75 + rng() * 0.7
+    const s = 1.2 + rng() * 0.9 // větší — čitelné i z dálky
     q.setFromAxisAngle(up, rng() * Math.PI)
-    sc.set(s, s * (0.9 + rng() * 0.3), s)
+    sc.set(s, s, s)
     m.compose(new THREE.Vector3(x, h - 1, z), q, sc)
     mesh.setMatrixAt(i, m)
     i++
   }
   mesh.count = i
   mesh.instanceMatrix.needsUpdate = true
-  mesh.frustumCulled = false // instance jsou po celé mapě; culling řeší dlaždice terénu
+  mesh.frustumCulled = false
   scene.add(mesh)
-  return mesh
 }
 
 // mini-merge dvou geometrií se stejnými atributy (bez importu utils)

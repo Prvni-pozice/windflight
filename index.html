@@ -131,9 +131,17 @@
     #hud-vario-avg { display: inline-block; min-width: 4.2ch; text-align: right; }
     #hud-stf { display: inline-block; min-width: 3ch; text-align: right; }
     @media (max-width: 760px) {
-      .pill { font-size: 0.82rem; padding: 5px 9px; }
-      .pill small { font-size: 0.64rem; margin-right: 3px; }
-      #hud { gap: 5px; padding: 6px 4px; }
+      /* mobil: pevná mřížka 4×2 — každý ukazatel má navždy svou buňku */
+      #hud.visible {
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        gap: 4px; padding: 6px;
+      }
+      .pill {
+        font-size: 0.8rem; padding: 5px 4px; border-radius: 10px;
+        text-align: center; white-space: nowrap; overflow: hidden;
+      }
+      .pill small { font-size: 0.6rem; margin-right: 2px; }
     }
     #hud-vario.up { color: #7dffb0; }
     #hud-vario.down { color: #ff9c8f; }
