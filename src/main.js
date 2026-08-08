@@ -12,6 +12,7 @@ import { FlightControls } from './controls.js'
 import { UI } from './ui.js'
 import { buildScenery } from './scenery.js'
 import { Forest } from './trees.js'
+import * as settings from './settings.js'
 
 const START = { lat: 45.9290, lon: 6.8560, alt: 2600, headingDeg: 20 } // nad Chamonix, čelem k Bréventu
 
@@ -76,6 +77,10 @@ class Game {
         ? '📱 Náklon telefonu — drž ho chvíli v klidu (kalibrace)'
         : '✋ Knipl prstem — táhni kamkoli po obrazovce')
     }
+    this.camMode = settings.get('camera') === 'cockpit' ? 'cockpit' : 'chase'
+    this._applyCamMode()
+    this.ui.onViewToggle = () => this._toggleView()
+    addEventListener('keydown', e => { if (e.code === 'KeyC') this._toggleView() })
     this.ui.onInvertToggle = () => {
       const inv = this.controls.toggleInvertY()
       this.ui.setControlUi(this.controls)
@@ -218,6 +223,21 @@ class Game {
     this.runMs = 0 // čas letu se sčítá z kroků simulace → pauza se nepočítá
     this.ui.beginRun()
     this.ui.showFlying(this.isTouch)
+  }
+
+  _toggleView() {
+    this.camMode = this.camMode === 'cockpit' ? 'chase' : 'cockpit'
+    settings.set('camera', this.camMode)
+    this._applyCamMode()
+    this.ui.setViewUi(this.camMode)
+    this.ui.toast(this.camMode === 'cockpit' ? '👁 Pohled z kokpitu' : '🎥 Pohled za kluzákem')
+  }
+
+  _applyCamMode() {
+    // v kokpitu je nos 1,6 m před okem — bez posunu near roviny by zmizel
+    this.camera.near = this.camMode === 'cockpit' ? 1.2 : 2
+    this.camera.updateProjectionMatrix()
+    this.ui.setViewUi(this.camMode)
   }
 
   _pause(info) {
@@ -383,8 +403,17 @@ class Game {
       this.camera.lookAt(mb.x, 3400, mb.z)
       return
     }
-    // chase kamera za kluzákem, jemně zpožděná, výš při pohledu do údolí
     const g = this.glider
+    // kokpit: kamera sedí pilotovi na místě, orientaci bere přímo z modelu
+    // (nos = −z, stejně jako se dívá kamera) → vidíš křídla i sklon v zatáčce
+    if (this.camMode === 'cockpit') {
+      _camTarget.set(0, 0.62, -1.5)
+      g.model.localToWorld(_camTarget)
+      this.camera.position.copy(_camTarget)
+      this.camera.quaternion.copy(g.model.quaternion)
+      return
+    }
+    // chase kamera za kluzákem, jemně zpožděná, výš při pohledu do údolí
     const back = (26 + g.v * 0.25) * (this._camZoom || 1)
     const sh = Math.sin(g.heading), ch = Math.cos(g.heading)
     _camTarget.set(

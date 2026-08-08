@@ -54,8 +54,10 @@ export class UI {
 
     this.onModeToggle = null
     this.onInvertToggle = null
+    this.onViewToggle = null
     document.getElementById('mode-btn').addEventListener('click', () => this.onModeToggle && this.onModeToggle())
     document.getElementById('invert-btn').addEventListener('click', () => this.onInvertToggle && this.onInvertToggle())
+    document.getElementById('view-btn').addEventListener('click', () => this.onViewToggle && this.onViewToggle())
 
     this._refreshBest()
     this.refreshBoards()
@@ -252,6 +254,10 @@ export class UI {
     el.classList.add('show')
     clearTimeout(this._toastT)
     this._toastT = setTimeout(() => el.classList.remove('show'), ms)
+  }
+
+  setViewUi(camMode) {
+    document.getElementById('view-btn').textContent = camMode === 'cockpit' ? '👁 Kokpit' : '🎥 Zvenku'
   }
 
   /** Stav přepínačů ovládání podle FlightControls. */
