@@ -11,7 +11,7 @@ export function formatTime(ms) {
 }
 
 export class UI {
-  constructor({ weatherLabel, gateTotal, onStart, onRetry, onPause, onResume }) {
+  constructor({ weatherLabel, gateTotal, onStart, onRetry, onPause, onResume, onFree, onContinue }) {
     this.startScreen = document.getElementById('start-screen')
     this.winOverlay = document.getElementById('win-overlay')
     this.crashOverlay = document.getElementById('crash-overlay')
@@ -33,6 +33,8 @@ export class UI {
     document.getElementById('start-btn').addEventListener('click', onStart)
     document.getElementById('retry-btn').addEventListener('click', onRetry)
     document.getElementById('crash-retry-btn').addEventListener('click', onRetry)
+    document.getElementById('free-btn').addEventListener('click', () => onFree && onFree())
+    document.getElementById('crash-continue-btn').addEventListener('click', () => onContinue && onContinue())
     document.getElementById('board-link').addEventListener('click', () => this.showBoard())
     document.getElementById('board-close').addEventListener('click', () => this.boardOverlay.classList.add('hidden'))
     document.getElementById('save-score-btn').addEventListener('click', () => this._submit())
@@ -318,7 +320,7 @@ export class UI {
   }
 
   // ── obrazovky ──
-  showFlying(isTouch) {
+  showFlying(isTouch, runMode = 'race') {
     this.startScreen.classList.add('hidden')
     this.winOverlay.classList.add('hidden')
     this.crashOverlay.classList.add('hidden')
@@ -326,7 +328,9 @@ export class UI {
     this.pauseOverlay.classList.add('hidden')
     this.setCountdown(0)
     this.hud.classList.add('visible')
-    document.getElementById('gate-info').style.display = 'block'
+    const free = runMode === 'free'
+    document.getElementById('gate-info').style.display = free ? 'none' : 'block'
+    document.getElementById('free-badge').style.display = free ? 'block' : 'none'
     document.getElementById('vario-gauge').classList.add('visible')
     document.getElementById('tilt-hint').style.display = isTouch ? 'block' : 'none'
     document.getElementById('ctrl-btns').classList.toggle('visible', !!isTouch)
@@ -335,6 +339,7 @@ export class UI {
   _hideFlightHud() {
     this.hud.classList.remove('visible')
     document.getElementById('gate-info').style.display = 'none'
+    document.getElementById('free-badge').style.display = 'none'
     document.getElementById('vario-gauge').classList.remove('visible')
     document.getElementById('tilt-hint').style.display = 'none'
     document.getElementById('ctrl-btns').classList.remove('visible')
@@ -345,16 +350,18 @@ export class UI {
     this.gateMarker.style.display = 'none'
   }
 
-  showWin(ms) {
-    this.lastMs = ms
+  showWin(ms, scoring = true) {
+    this.lastMs = scoring ? ms : null
     const prev = this.best
-    const rec = !prev || ms < prev
+    const rec = scoring && (!prev || ms < prev)
     if (rec) localStorage.setItem(BEST_KEY, String(Math.round(ms)))
     document.getElementById('final-time').textContent = formatTime(ms)
     document.getElementById('win-cond').textContent = this.weatherLabel
     document.getElementById('record-badge').classList.toggle('show', rec)
-    this.saveScoreBox.classList.remove('done')
-    this.saveStatus.textContent = ''
+    // let restartovaný u brány se do žebříčku nepočítá
+    this.saveScoreBox.classList.toggle('done', !scoring)
+    this.saveStatus.textContent = scoring ? '' : 'Let pokračoval od brány — mimo žebříček.'
+    this.saveStatus.className = scoring ? '' : 'muted'
     const btn = document.getElementById('save-score-btn')
     btn.disabled = false
     btn.textContent = 'Uložit výsledek'
@@ -365,10 +372,12 @@ export class UI {
     this.refreshBoards()
   }
 
-  showCrash(gatesDone, gateTotal, tip) {
-    document.getElementById('crash-info').textContent =
-      `Proletěno bran: ${gatesDone} z ${gateTotal}`
+  showCrash(gatesDone, gateTotal, tip, canContinue) {
+    document.getElementById('crash-info').textContent = gateTotal
+      ? `Proletěno bran: ${gatesDone} z ${gateTotal}`
+      : 'Konec volného letu'
     document.getElementById('crash-tip').textContent = tip || ''
+    document.getElementById('crash-continue-btn').style.display = canContinue ? '' : 'none'
     this.crashOverlay.classList.remove('hidden')
     this._hideFlightHud()
   }

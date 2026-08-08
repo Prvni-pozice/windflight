@@ -48,9 +48,15 @@ class Game {
         }
         this._startRun()
       },
-      onRetry: () => this._startRun(),
+      onRetry: () => this._startRun(this.runMode),
       onPause: () => this._pause(),
       onResume: () => this._resume(),
+      onFree: async () => {
+        this.vario.init()
+        if (this.isTouch) { await this.controls.enableTilt(); this._syncSettings() }
+        this._startRun('free')
+      },
+      onContinue: () => this._continueFromGate(),
     })
 
     // pauza: ESC/P, tlačítko ⏸, a hlavně AUTOMATICKY při odchodu z okna
@@ -217,15 +223,45 @@ class Game {
     this._updateCamera(1)
   }
 
-  _startRun() {
+  /** @param runMode 'race' = trať na čas, 'free' = trénink bez bran a bez času */
+  _startRun(runMode = 'race') {
     if (this._inSm) { this._inSm.pitch = 0; this._inSm.roll = 0 }
+    this.runMode = runMode === 'free' ? 'free' : 'race'
+    this.scoring = this.runMode === 'race'
     this._spawn()
+    this.gates.group.visible = this.runMode === 'race'
     this.state = 'flying'
     this.paused = false
     this._resumeT = 0
     this.runMs = 0 // čas letu se sčítá z kroků simulace → pauza se nepočítá
     this.ui.beginRun()
-    this.ui.showFlying(this.isTouch)
+    this.ui.showFlying(this.isTouch, this.runMode)
+  }
+
+  /**
+   * Restart u poslední proleté brány. Náraz v páté bráně po dvaceti
+   * minutách jinak znamená celou trať znovu — to hráče od hry odradí víc
+   * než těžká termika. Takový let se ale do žebříčku nepočítá.
+   */
+  _continueFromGate() {
+    const done = this.gates.current
+    const from = done > 0 ? this.gates.list[done - 1] : null
+    const start = this.startPoint()
+    const p = from
+      ? new THREE.Vector3(from.x, from.y + 120, from.z)
+      : new THREE.Vector3(start.x, START.alt, start.z)
+    const nxt = this.gates.next
+    const heading = nxt
+      ? Math.atan2(nxt.x - p.x, -(nxt.z - p.z))
+      : START.headingDeg * Math.PI / 180
+    if (this._inSm) { this._inSm.pitch = 0; this._inSm.roll = 0 }
+    this.glider.reset(p, heading)
+    this.scoring = false
+    this.state = 'flying'
+    this.paused = false
+    this._resumeT = 0
+    this.ui.showFlying(this.isTouch, this.runMode)
+    this.ui.toast('Pokračuješ od brány — tenhle let se do žebříčku nepočítá', 2600)
   }
 
   _syncSettings() {
@@ -268,15 +304,17 @@ class Game {
 
   _finish() {
     this.state = 'done'
-    this.ui.showWin(this.runMs)
+    this.ui.showWin(this.runMs, this.scoring)
   }
 
   _crash() {
     this.state = 'crashed'
     const wasStall = this.glider.stalled > 0
-    this.ui.showCrash(this.gates.current, this.gates.total,
+    const free = this.runMode === 'free'
+    this.ui.showCrash(this.gates.current, free ? 0 : this.gates.total,
       wasStall ? 'Přetažení u země — hlídej rychlost nad 60 km/h.'
-        : 'Náraz do terénu — přes hřebeny si vytoč výšku v termice.')
+        : 'Náraz do terénu — přes hřebeny si vytoč výšku v termice.',
+      !free && this.gates.current > 0)
     if (navigator.vibrate) navigator.vibrate(180)
   }
 
@@ -325,7 +363,7 @@ class Game {
 
       if (this.glider.crashed) this._crash()
 
-      if (this.gates.check(this.glider.pos)) {
+      if (this.runMode !== 'free' && this.gates.check(this.glider.pos)) {
         this.ui.gatePassed(this.gates.current, this.gates.total)
         if (navigator.vibrate) navigator.vibrate(60)
         if (!this.gates.next) { this._finish() }
@@ -508,7 +546,7 @@ class Game {
   }
 
   _updateGateMarker() {
-    const g = this.gates.next
+    const g = this.runMode === 'free' ? null : this.gates.next
     const el = this.ui.gateMarker
     if (!g) { el.style.display = 'none'; return }
     _proj.set(g.x, g.y, g.z).project(this.camera)

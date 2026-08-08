@@ -193,6 +193,12 @@
     @media (max-width: 760px) {
       #gate-info { font-size: 0.85rem; padding: 6px 12px; }
     }
+    #free-badge {
+      position: fixed; bottom: calc(14px + env(safe-area-inset-bottom, 0)); left: 50%;
+      transform: translateX(-50%); z-index: 10; pointer-events: none;
+      color: #d9ecfb; background: rgba(8, 20, 32, 0.55); border: 1px solid rgba(255,255,255,0.14);
+      padding: 8px 18px; border-radius: 999px; font-size: 0.9rem; font-weight: 600; white-space: nowrap;
+    }
     #gate-marker {
       position: fixed; z-index: 9; pointer-events: none; display: none;
       transform: translate(-50%, -50%); flex-direction: column; align-items: center;
@@ -296,6 +302,7 @@
       U brány dole svítí <b>doklouzání</b>: ▲ +180 m = doletíš s rezervou, ▼ = tolik ti chybí (⛰ = brzdí tě hřeben).</span>
     </div>
     <button id="start-btn">▶&nbsp; Vzlétnout</button>
+    <button class="link-btn" id="free-btn">🕊 Volný let (trénink bez bran)</button>
     <div class="best-line" id="start-best"></div>
     <div class="board-mini" id="start-top3"></div>
     <button class="link-btn" id="board-link">🏆 Žebříček pilotů →</button>
@@ -322,6 +329,7 @@
     <div class="subtitle" id="crash-info"></div>
     <div class="muted" id="crash-tip" style="max-width:420px; margin-bottom:8px;"></div>
     <button id="crash-retry-btn" style="margin-top: 10px;">↻&nbsp; Letět znovu</button>
+    <button class="link-btn" id="crash-continue-btn">⤴ Pokračovat od poslední brány (mimo žebříček)</button>
   </div>
 
   <div id="board-overlay" class="overlay hidden">
@@ -351,6 +359,7 @@
   <div id="gate-marker"><span class="ring">⭘</span></div>
   <div id="thermal-marker"><span class="ic">🌀</span><span class="dist"></span></div>
   <div id="gate-flash"></div>
+  <div id="free-badge" style="display:none">🕊 Volný let — trénink, čas se nikam nepočítá</div>
   <div id="stall-warn">⚠ MALÁ RYCHLOST — potlač!</div>
   <div id="terrain-warn"></div>
   <div id="tilt-hint">Dvojklepem kdykoli zkalibruješ neutrální držení telefonu</div>
