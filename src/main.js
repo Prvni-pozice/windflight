@@ -23,9 +23,11 @@ class Game {
     this.state = 'menu' // menu | flying | done | crashed
     this.runMs = 0      // čas letu (jen běžící simulace, bez pauz)
     this.paused = false
+    this.isTouch = matchMedia('(pointer: coarse)').matches
 
     this._setupRenderer()
     this._setupScene()
+    this._applyQuality()
 
     this.controls = new FlightControls()
     this.vario = new Vario()
@@ -73,7 +75,6 @@ class Game {
     })
     addEventListener('blur', () => this._pause())
 
-    this.isTouch = matchMedia('(pointer: coarse)').matches
     this.ui.buildMinimap(this.terrain, this.gates)
     this.ui.onMuteToggle = () => this.vario.toggleMute()
     this.ui.onModeToggle = () => {
@@ -94,6 +95,11 @@ class Game {
     }
     this.ui.onInvertSet = v => { this.controls.setInvertY(v); this._syncSettings() }
     this.ui.onSens = v => this.controls.setSens(v)
+    this.ui.onQuality = v => {
+      settings.set('quality', v)
+      this._applyQuality()
+      this.ui.toast('Kvalita: ' + { auto: 'automaticky', low: 'nízká', med: 'střední', high: 'vysoká' }[v])
+    }
     this._syncSettings()
     document.getElementById('mute-btn').textContent = this.vario.muted ? '🔇' : '🔊'
     this._spawn()
@@ -105,7 +111,7 @@ class Game {
 
   _setupRenderer() {
     this.renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' })
-    this._prMax = Math.min(devicePixelRatio, matchMedia('(pointer: coarse)').matches ? 1.6 : 2)
+    this._prMax = Math.min(devicePixelRatio, this.isTouch ? 1.6 : 2)
     this._pr = this._prMax
     this.renderer.setPixelRatio(this._pr)
     this.renderer.setSize(innerWidth, innerHeight)
@@ -174,9 +180,11 @@ class Game {
       new THREE.Color(0xdce8f2), new THREE.Color(0xc6ccd3), cc)
     this.scene.fog = new THREE.Fog(fogCol, 9000 - cc * 3500, 60000 - cc * 18000)
 
+    this._fogNear0 = this.scene.fog.near
+    this._fogFar0 = this.scene.fog.far
     this.terrain.addTo(this.scene)
     buildScenery(this.scene, this.terrain)
-    this.forest = new Forest(this.scene, this.terrain)
+    // les staví až _applyQuality() — jeho hustota závisí na nastavení
 
     // silueta dalekých hřebenů na obzoru (prstenec zubatého pásu v oparu)
     {
@@ -264,12 +272,33 @@ class Game {
     this.ui.toast('Pokračuješ od brány — tenhle let se do žebříčku nepočítá', 2600)
   }
 
+  /** 'auto' → podle zařízení; jinak co si hráč vybral. */
+  _quality() {
+    const q = settings.get('quality')
+    return (q === 'low' || q === 'med' || q === 'high') ? q : (this.isTouch ? 'med' : 'high')
+  }
+
+  /** Přestavět les, dohlednost a rozlišení podle kvality (platí hned). */
+  _applyQuality() {
+    const q = this._quality()
+    this._prMax = Math.min(devicePixelRatio, { low: 1, med: 1.5, high: 2 }[q])
+    this._pr = this._prMax
+    this.renderer.setPixelRatio(this._pr)
+    const k = { low: 0.5, med: 0.75, high: 1 }[q]
+    this.scene.fog.near = this._fogNear0 * k
+    this.scene.fog.far = this._fogFar0 * k
+    if (this.forest) this.forest.dispose()
+    this.forest = new Forest(this.scene, this.terrain, q)
+    this.forest.update(this.camera.position.x, this.camera.position.z)
+  }
+
   _syncSettings() {
     this.ui.setControlUi(this.controls)
     this.ui.syncSettings({
       sens: this.controls.sens,
       invertY: this.controls.invertY,
       isTouch: this.isTouch,
+      quality: settings.get('quality'),
     })
   }
 

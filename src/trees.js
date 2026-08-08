@@ -17,13 +17,21 @@ const TOWN_CLEAR = [
   [45.9237, 6.8694, 950], [45.9790, 6.9260, 550], [45.8905, 6.7990, 600], [45.9450, 6.8880, 350],
 ]
 
+// počty stromů podle nastavené kvality (les je zdaleka nejdražší část scény)
+export const FOREST_LEVELS = {
+  low: { near: 4500, r: 1000, far: 3500 },
+  med: { near: 9000, r: 1500, far: 7000 },
+  high: { near: 22000, r: 2300, far: 14000 },
+}
+
 export class Forest {
-  constructor(scene, terrain) {
+  constructor(scene, terrain, level = 'med') {
     this.terrain = terrain
-    const isTouch = typeof matchMedia !== 'undefined' && matchMedia('(pointer: coarse)').matches
-    this.NEAR = isTouch ? 9000 : 22000
+    this.scene = scene
+    const L = FOREST_LEVELS[level] || FOREST_LEVELS.med
+    this.NEAR = L.near
     this.CELL = 400
-    this.R = isTouch ? 1500 : 2300
+    this.R = L.r
     this.perCell = Math.floor(this.NEAR / ((Math.ceil(this.R / this.CELL) * 2 + 1) ** 2) * 1.35)
     this.towns = TOWN_CLEAR.map(([lat, lon, r]) => ({ ...terrain.fromLatLon(lat, lon), r }))
 
@@ -35,7 +43,19 @@ export class Forest {
     scene.add(this.near)
     this._lastCell = null
     // dálková řídká vrstva (větší siluety, statická) — les je vidět i z výšky
-    buildFarLayer(scene, terrain, this.towns, isTouch ? 7000 : 14000)
+    this.far = buildFarLayer(scene, terrain, this.towns, L.far)
+  }
+
+  /** Uvolnit les (přepnutí kvality za běhu). */
+  dispose() {
+    for (const m of [this.near, this.far]) {
+      if (!m) continue
+      this.scene.remove(m)
+      m.geometry.dispose()
+      m.material.map?.dispose()
+      m.material.dispose()
+    }
+    this.near = this.far = null
   }
 
   update(camX, camZ) {
@@ -151,6 +171,7 @@ function buildFarLayer(scene, terrain, towns, COUNT) {
   mesh.instanceMatrix.needsUpdate = true
   mesh.frustumCulled = false
   scene.add(mesh)
+  return mesh
 }
 
 // mini-merge dvou geometrií se stejnými atributy (bez importu utils)

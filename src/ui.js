@@ -68,6 +68,9 @@ export class UI {
     document.getElementById('invert-chk').addEventListener('change', e => {
       if (this.onInvertSet) this.onInvertSet(e.target.checked)
     })
+    document.getElementById('quality-sel').addEventListener('change', e => {
+      if (this.onQuality) this.onQuality(e.target.value)
+    })
 
     this.onModeToggle = null
     this.onInvertToggle = null
@@ -269,10 +272,11 @@ export class UI {
   }
 
   /** Naplnit ovládací prvky nastavení podle skutečného stavu. */
-  syncSettings({ sens, invertY, isTouch }) {
+  syncSettings({ sens, invertY, isTouch, quality }) {
     document.getElementById('tilt-sens').value = sens
     document.getElementById('tilt-sens-val').textContent = Math.round(sens * 100) + ' %'
     document.getElementById('invert-chk').checked = !!invertY
+    document.getElementById('quality-sel').value = quality || 'auto'
     // citlivost náklonu nemá na desktopu co ovlivnit
     document.getElementById('row-sens').classList.toggle('hidden', !isTouch)
     document.getElementById('row-invert').classList.toggle('hidden', !isTouch)

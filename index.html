@@ -111,6 +111,11 @@
     }
     .setting-row input[type=range] { width: 130px; accent-color: #4aa3e8; }
     .setting-row input[type=checkbox] { width: 22px; height: 22px; accent-color: #4aa3e8; }
+    .setting-row select {
+      font: inherit; font-size: 0.9rem; padding: 6px 10px; border-radius: 8px;
+      background: rgba(10, 22, 36, 0.8); color: #eaf3fb;
+      border: 1px solid rgba(255, 255, 255, 0.22);
+    }
     .setting-row span { opacity: 0.7; font-variant-numeric: tabular-nums; text-align: right; }
     .setting-row.hidden { display: none; }
 
@@ -384,6 +389,16 @@
       <div class="setting-row" id="row-invert">
         <label for="invert-chk">Náklon/tah k sobě = nos dolů</label>
         <input type="checkbox" id="invert-chk" />
+        <span></span>
+      </div>
+      <div class="setting-row" id="row-quality">
+        <label for="quality-sel">Kvalita grafiky</label>
+        <select id="quality-sel">
+          <option value="auto">Automaticky</option>
+          <option value="low">Nízká (plynulost)</option>
+          <option value="med">Střední</option>
+          <option value="high">Vysoká</option>
+        </select>
         <span></span>
       </div>
     </div>
