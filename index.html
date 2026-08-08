@@ -212,6 +212,30 @@
       color: rgba(233, 243, 251, 0.55); font-size: 0.82rem;
     }
     #mute-btn, #map-btn { pointer-events: auto; cursor: pointer; }
+
+    /* přepínače ovládání (jen mobil, za letu) — vpravo dole, mimo palec
+       na kniplu i mimo minimapu vlevo */
+    #ctrl-btns {
+      position: fixed; right: 10px; bottom: calc(12px + env(safe-area-inset-bottom, 0));
+      z-index: 12; display: none; flex-direction: row; gap: 6px; align-items: center;
+    }
+    #ctrl-btns.visible { display: flex; }
+    #ctrl-btns button {
+      pointer-events: auto; cursor: pointer; font: inherit;
+      background: rgba(8, 20, 32, 0.62); border: 1px solid rgba(255, 255, 255, 0.18);
+      color: #dbeaf8; border-radius: 999px; padding: 8px 12px; font-size: 0.78rem;
+      font-weight: 600; backdrop-filter: blur(4px); white-space: nowrap;
+    }
+    #ctrl-btns button:active { transform: scale(0.95); }
+
+    #toast {
+      position: fixed; left: 50%; top: 12%; transform: translateX(-50%);
+      z-index: 14; pointer-events: none; opacity: 0; transition: opacity 0.25s ease;
+      background: rgba(8, 20, 32, 0.78); border: 1px solid rgba(255, 255, 255, 0.18);
+      color: #eaf3fb; padding: 9px 18px; border-radius: 999px; font-size: 0.9rem;
+      font-weight: 600; max-width: 88vw; text-align: center;
+    }
+    #toast.show { opacity: 1; }
   </style>
 </head>
 <body>
@@ -226,7 +250,8 @@
       🌡 <b>termika</b> — sloupce stoupajícího vzduchu nad osluněnými svahy (hledej víry částic, kroužící ptáky a kumuly nad nimi)<br>
       ⛰ <b>svahové proudění</b> — vítr opřený do svahu zvedá podél návětrných hřebenů<br><br>
       <b>Desktop:</b> ←→↑↓ šipky, tažení myší (knipl) nebo gamepad · R restart · TAB mapa<br>
-      <b>Mobil:</b> náklon telefonu · dvojklep = rekalibrace držení &nbsp;·&nbsp; <b>R</b> = restart<br>
+      <b>Mobil:</b> náklon telefonu, nebo <b>✋ knipl prstem</b> — přepneš tlačítkem vpravo dole.
+      Tlačítko <b>⇅</b> obrací směr výšky, dvojklep rekalibruje držení telefonu.<br>
       <span class="tip">⚠ Pod ~60 km/h přetažení. V zatáčce klesáš rychleji. Variometr pípá ve stoupání.</span>
     </div>
     <button id="start-btn">▶&nbsp; Vzlétnout</button>
@@ -286,6 +311,11 @@
   <div id="gate-flash"></div>
   <div id="stall-warn">⚠ MALÁ RYCHLOST — potlač!</div>
   <div id="tilt-hint">Dvojklepem kdykoli zkalibruješ neutrální držení telefonu</div>
+  <div id="ctrl-btns">
+    <button id="mode-btn">📱 Náklon</button>
+    <button id="invert-btn">⇅ Obráceně</button>
+  </div>
+  <div id="toast"></div>
   <div id="stick-base" style="display:none; position:fixed; z-index:12; width:110px; height:110px; margin:-55px 0 0 -55px; border-radius:50%; background:rgba(255,255,255,0.07); border:2px solid rgba(255,255,255,0.28); pointer-events:none;">
     <div id="stick-knob" style="position:absolute; left:50%; top:50%; width:48px; height:48px; border-radius:50%; background:rgba(255,255,255,0.35); transform:translate(-50%,-50%);"></div>
   </div>

@@ -41,10 +41,8 @@ class Game {
       onStart: async () => {
         this.vario.init()
         if (this.isTouch) {
-          const r = await this.controls.enableTilt()
-          if (r === 'ok') this.controls.calibrate()
-          else this.controls.touchStickEnabled = true // fallback: virtuální knipl
-          this.ui.setTiltMode(r === 'ok')
+          await this.controls.enableTilt() // sám nastaví režim (náklon / dotyk)
+          this.ui.setControlUi(this.controls)
         }
         this._startRun()
       },
@@ -54,6 +52,18 @@ class Game {
     this.isTouch = matchMedia('(pointer: coarse)').matches
     this.ui.buildMinimap(this.terrain, this.gates)
     this.ui.onMuteToggle = () => this.vario.toggleMute()
+    this.ui.onModeToggle = () => {
+      const m = this.controls.toggleMode()
+      this.ui.setControlUi(this.controls)
+      this.ui.toast(m === 'tilt'
+        ? '📱 Náklon telefonu — drž ho chvíli v klidu (kalibrace)'
+        : '✋ Knipl prstem — táhni kamkoli po obrazovce')
+    }
+    this.ui.onInvertToggle = () => {
+      const inv = this.controls.toggleInvertY()
+      this.ui.setControlUi(this.controls)
+      this.ui.toast(inv ? 'Náklon/tah k sobě = nos DOLŮ' : 'Náklon/tah k sobě = nos NAHORU')
+    }
     document.getElementById('mute-btn').textContent = this.vario.muted ? '🔇' : '🔊'
     this._spawn()
 
@@ -232,7 +242,7 @@ class Game {
       if (!this._inSm) this._inSm = { pitch: 0, roll: 0 }
       const k = Math.min(1, dt * 6.5)
       // na mobilu (tilt) chráníme před nechtěným přetažením: max přitažení 0.8
-      const pitchIn = (this.isTouch && this.controls.tiltActive) ? Math.max(-0.8, raw.pitch) : raw.pitch
+      const pitchIn = (this.isTouch && this.controls.mode === 'tilt') ? Math.max(-0.8, raw.pitch) : raw.pitch
       this._inSm.pitch += (pitchIn - this._inSm.pitch) * k
       this._inSm.roll += (raw.roll - this._inSm.roll) * k
       const input = this._inSm

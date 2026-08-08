@@ -47,6 +47,11 @@ export class UI {
       if (this.onMuteToggle) muteBtn.textContent = this.onMuteToggle() ? '🔇' : '🔊'
     })
 
+    this.onModeToggle = null
+    this.onInvertToggle = null
+    document.getElementById('mode-btn').addEventListener('click', () => this.onModeToggle && this.onModeToggle())
+    document.getElementById('invert-btn').addEventListener('click', () => this.onInvertToggle && this.onInvertToggle())
+
     this._refreshBest()
     this.refreshBoards()
   }
@@ -210,10 +215,27 @@ export class UI {
     c.restore()
   }
 
-  setTiltMode(tiltOk) {
-    document.getElementById('tilt-hint').textContent = tiltOk
-      ? 'Dvojklepem kdykoli zkalibruješ neutrální držení telefonu'
-      : 'Táhni prstem po obrazovce = knipl (náklon není dostupný — funguje na HTTPS)'
+  /** Krátká zpráva uprostřed nahoře (přepnutí režimu, kamera, pauza…). */
+  toast(text, ms = 1900) {
+    const el = document.getElementById('toast')
+    el.textContent = text
+    el.classList.add('show')
+    clearTimeout(this._toastT)
+    this._toastT = setTimeout(() => el.classList.remove('show'), ms)
+  }
+
+  /** Stav přepínačů ovládání podle FlightControls. */
+  setControlUi({ mode, invertY, tiltAvailable }) {
+    const mb = document.getElementById('mode-btn')
+    mb.textContent = mode === 'tilt' ? '📱 Náklon' : '✋ Dotyk'
+    // bez povoleného senzoru není mezi čím přepínat
+    mb.style.display = tiltAvailable ? 'block' : 'none'
+    document.getElementById('invert-btn').textContent = invertY ? '⇅ Obráceně' : '⇅ Klasicky'
+    document.getElementById('tilt-hint').textContent = mode === 'tilt'
+      ? 'Náklon telefonu · dvojklep = rekalibrace držení'
+      : (tiltAvailable
+        ? 'Táhni prstem po obrazovce = knipl'
+        : 'Táhni prstem = knipl (náklon jde jen přes HTTPS)')
   }
 
   async beginRun() {
@@ -231,6 +253,7 @@ export class UI {
     document.getElementById('gate-info').style.display = 'block'
     document.getElementById('vario-gauge').classList.add('visible')
     document.getElementById('tilt-hint').style.display = isTouch ? 'block' : 'none'
+    document.getElementById('ctrl-btns').classList.toggle('visible', !!isTouch)
   }
 
   _hideFlightHud() {
@@ -238,6 +261,7 @@ export class UI {
     document.getElementById('gate-info').style.display = 'none'
     document.getElementById('vario-gauge').classList.remove('visible')
     document.getElementById('tilt-hint').style.display = 'none'
+    document.getElementById('ctrl-btns').classList.remove('visible')
     this.gateMarker.style.display = 'none'
   }
 

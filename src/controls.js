@@ -4,6 +4,13 @@
 //  desktop: šipky/WASD = pitch+roll, W/S nebo +/- … plyn = Shift/Ctrl i W/S?
 //         → finálně: ↑↓ pitch, ←→ roll, W = plyn +, S = plyn −
 // Kalibrace: neutrální náklon se sejme při startu (hráč drží mobil pohodlně).
+//
+// Režimy na mobilu (přepínatelné za letu, viz setMode): 'tilt' = náklon
+// telefonu, 'touch' = virtuální knipl prstem. Náklon je jen NABÍDKA — když
+// hráči nesedí (nebo není k dispozici na http://), musí jít přepnout, ne
+// restartovat hru.
+import * as settings from './settings.js'
+
 export class FlightControls {
   constructor() {
     this.keys = {}
@@ -12,17 +19,19 @@ export class FlightControls {
     this.neutralG = null
     this.thrUpHeld = false
     this.thrDnHeld = false
-    this.tiltActive = false
+    this.tiltActive = false      // tečou data z akcelerometru
+    this.tiltAvailable = false   // povolení uděleno → jde nabídnout režim náklonu
+    this.mode = settings.get('controlMode') === 'touch' ? 'touch' : 'tilt'
+    this.invertY = !!settings.get('invertY')
+    this.sens = Math.max(0.6, Math.min(1.8, +settings.get('tiltSens') || 1))
 
     addEventListener('keydown', e => { this.keys[e.code] = true })
     addEventListener('keyup', e => { this.keys[e.code] = false })
 
-    // dotykový virtuální knipl: táhni prstem kdekoli (fallback, když
-    // náklon není dostupný — http://, odepřené povolení, starý mobil)
-    this.touchStickEnabled = false
+    // dotykový virtuální knipl: táhni prstem kdekoli
     this.stick = { active: false, dx: 0, dy: 0, id: null }
     addEventListener('touchstart', e => {
-      if (!this.touchStickEnabled || this.tiltActive) return
+      if (this.mode !== 'touch') return
       if (e.target.closest && e.target.closest('.overlay, button, input')) return
       const t = e.changedTouches[0]
       this.stick.active = true
@@ -53,12 +62,7 @@ export class FlightControls {
       if (!this.stick.active) return
       for (const t of e.changedTouches) {
         if (t.identifier !== this.stick.id) continue
-        this.stick.active = false
-        this.stick.dx = 0; this.stick.dy = 0
-        const base = document.getElementById('stick-base')
-        if (base) base.style.display = 'none'
-        const knob = document.getElementById('stick-knob')
-        if (knob) knob.style.transform = 'translate(-50%, -50%)'
+        this._stickCancel()
       }
     }
     addEventListener('touchend', stickEnd, { passive: true })
@@ -112,10 +116,41 @@ export class FlightControls {
         return
       }
       const now = performance.now()
-      if (now - lastTap < 320) this.calibrate()
+      if (now - lastTap < 320 && this.mode === 'tilt') this.calibrate()
       lastTap = now
     })
   }
+
+  /** Sklopit virtuální knipl do neutrálu a schovat ho. */
+  _stickCancel() {
+    this.stick.active = false
+    this.stick.dx = 0; this.stick.dy = 0
+    const base = document.getElementById('stick-base')
+    if (base) base.style.display = 'none'
+    const knob = document.getElementById('stick-knob')
+    if (knob) knob.style.transform = 'translate(-50%, -50%)'
+  }
+
+  /** Přepnout ovládání. Bez povoleného náklonu vždy skončí u 'touch'.
+   *  persist=false u vynuceného pádu na dotyk (http:// bez senzoru) — ať
+   *  nepřepíšeme volbu hráče pro příště, až pojede přes HTTPS. */
+  setMode(m, persist = true) {
+    this.mode = (m === 'tilt' && this.tiltAvailable) ? 'tilt' : 'touch'
+    if (persist) settings.set('controlMode', this.mode)
+    this._stickCancel()
+    if (this.mode === 'tilt') this.calibrate() // po přepnutí sejmi nové držení
+    return this.mode
+  }
+
+  toggleMode() { return this.setMode(this.mode === 'tilt' ? 'touch' : 'tilt') }
+
+  setInvertY(v) {
+    this.invertY = !!v
+    settings.set('invertY', this.invertY)
+    return this.invertY
+  }
+
+  toggleInvertY() { return this.setInvertY(!this.invertY) }
 
   /**
    * Volat z user gesta (Start) — iOS vyžaduje requestPermission.
@@ -124,19 +159,22 @@ export class FlightControls {
    * na http:// API vůbec neexistuje / permission spadne.
    */
   async enableTilt() {
+    const fail = code => { this.tiltAvailable = false; this.setMode('touch', false); return code }
     if (typeof DeviceOrientationEvent === 'undefined') {
-      return window.isSecureContext ? 'unsupported' : 'insecure'
+      return fail(window.isSecureContext ? 'unsupported' : 'insecure')
     }
     try {
       if (DeviceOrientationEvent.requestPermission) {
-        if (!window.isSecureContext) return 'insecure'
+        if (!window.isSecureContext) return fail('insecure')
         const res = await DeviceOrientationEvent.requestPermission()
-        if (res !== 'granted') return 'denied'
+        if (res !== 'granted') return fail('denied')
       }
       addEventListener('deviceorientation', this._onOrient)
+      this.tiltAvailable = true
+      this.setMode(this.mode, false) // uložená volba hráče (náklon / dotyk)
       return 'ok'
     } catch {
-      return window.isSecureContext ? 'denied' : 'insecure'
+      return fail(window.isSecureContext ? 'denied' : 'insecure')
     }
   }
 
@@ -205,10 +243,10 @@ export class FlightControls {
       pitch += Math.max(-1, Math.min(1, -this.mouse.dy))
     }
 
-    // dotykový knipl (jen když neřídí náklon): dolů = přitáhnout
+    // dotykový knipl: směr podle invertY (viz níže u náklonu)
     if (this.stick.active) {
       roll += this.stick.dx
-      pitch += -this.stick.dy
+      pitch += (this.invertY ? 1 : -1) * this.stick.dy
     }
 
     // gamepad: levá páčka (deadzone 0.15), zatažení = stoupat
@@ -229,12 +267,15 @@ export class FlightControls {
     // ZKALIBROVANÉMU neutrálu (ne proti nule), stejně přeorientovanému
     // podle displeje jako za běhu (viz _orientedTilt). Dokud kalibrace
     // neproběhla, tilt neřídí (jinak by prvních ~1 s řídil špatný neutrál).
-    if (this.tiltActive && this.tilt.beta != null && this.neutralB != null && this._calRemaining === 0) {
+    if (this.mode === 'tilt' && this.tiltActive && this.tilt.beta != null
+        && this.neutralB != null && this._calRemaining === 0) {
       const { b, g } = this._orientedTilt()
-      // náklon k sobě (beta > neutral) = přitáhnout = STOUPAT → záporný pitch
-      // (v této hře pitch +1 = potlačeno/rychle); dřív obráceně = zmatek
-      pitch -= Math.max(-1, Math.min(1, (b - this.neutralB) / 44))
-      roll += Math.max(-1, Math.min(1, (g - this.neutralG) / 50))
+      // Směr výšky: b roste = telefon se zvedá k sobě (displej blíž ke svislé).
+      //  invertY = true  → k sobě = nos DOLŮ (výchozí, ověřeno na telefonu)
+      //  invertY = false → k sobě = nos NAHORU (klasika jako u kniplu)
+      const dir = this.invertY ? 1 : -1
+      pitch += dir * Math.max(-1, Math.min(1, (b - this.neutralB) / (44 / this.sens)))
+      roll += Math.max(-1, Math.min(1, (g - this.neutralG) / (50 / this.sens)))
     }
 
     pitch = Math.max(-1, Math.min(1, pitch))
