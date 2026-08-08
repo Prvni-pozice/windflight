@@ -281,8 +281,8 @@ export class FlightControls {
     if (this.mode === 'tilt' && this.tiltActive && this._bF != null
         && this.neutralB != null && this._calRemaining === 0) {
       // Směr výšky: b roste = telefon se zvedá k sobě (displej blíž ke svislé).
-      //  invertY = true  → k sobě = nos DOLŮ (výchozí, ověřeno na telefonu)
-      //  invertY = false → k sobě = nos NAHORU (klasika jako u kniplu)
+      //  invertY = false → k sobě = nos NAHORU, stoupám (výchozí, jako knipl)
+      //  invertY = true  → k sobě = nos DOLŮ (pro toho, komu sedí opak)
       const dir = this.invertY ? 1 : -1
       // mrtvá zóna 1,5° = klid v ruce znamená klid na kniplu
       const dz = v => Math.sign(v) * Math.max(0, Math.abs(v) - 1.5)

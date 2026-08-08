@@ -7,7 +7,7 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
-    "test": "node tests/controls.test.mjs"
+    "test": "node tests/controls.test.mjs && node tests/pitch-consistency.test.mjs"
   },
   "dependencies": {
     "three": "^0.170.0"

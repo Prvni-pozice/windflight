@@ -1,9 +1,14 @@
 // Test směru ovládání náklonem — bez prohlížeče, nad reálným controls.js.
 //
-// Proč existuje: směr výšky u náklonu se v historii projektu otočil "od
-// stolu" špatným směrem a přišlo se na to až na telefonu. Tenhle test drží
-// dohodnutou konvenci: VÝCHOZÍ (invertY = true) je "telefon k sobě = nos
-// dolů". Když ji někdo bude chtít změnit, ať to udělá vědomě i tady.
+// Proč existuje: směr výšky se v historii projektu už dvakrát otočil "od
+// stolu". Dohodnutá konvence: VÝCHOZÍ (invertY = false) je "telefon k sobě
+// = nos nahoru, stoupám" — jako knipl. Když ji někdo bude chtít změnit, ať
+// to udělá vědomě i tady.
+//
+// Pozor: znaménko vstupu je jen půlka pravdy. `pitch > 0` znamená v celé hře
+// NOS DOLŮ (glider.js: theta > 0 → vyšší rovnovážná rychlost → klesání).
+// Test to hlídá i z téhle strany, protože právě rozpor mezi vstupem, fyzikou
+// a kreslením modelu byl původní chybou.
 //
 // Spuštění: node tests/controls.test.mjs
 import assert from 'node:assert/strict'
@@ -31,14 +36,14 @@ const { FlightControls } = await import('../src/controls.js')
 const orient = (c, { beta = 0, gamma = -40 }) => c._onOrient({ beta, gamma })
 
 // 0) výchozí konvence — čte se z prázdného úložiště, než ji cokoli přepíše
-assert.equal(new FlightControls().invertY, true,
-  'výchozí je invertY = true, tedy telefon k sobě = nos dolů')
+assert.equal(new FlightControls().invertY, false,
+  'výchozí je invertY = false, tedy telefon k sobě = nos nahoru')
 
 function fresh() {
   const c = new FlightControls()
   c.tiltAvailable = true
   c.setMode('tilt')
-  c.setInvertY(true) // nastavení je společné pro celý modul, sjednotit start
+  c.setInvertY(false) // nastavení je společné pro celý modul, sjednotit start
   c.calibrate()
   for (let i = 0; i < 45; i++) orient(c, { gamma: -40 }) // neutrál = 40°
   return c
@@ -53,21 +58,39 @@ function fresh() {
   assert.ok(Math.abs(i.roll) < 0.02, `neutrál nesmí zatáčet, je ${i.roll}`)
 }
 
-// 2) výchozí směr: telefon K SOBĚ (strmější displej) = nos DOLŮ (pitch > 0)
+// 2) výchozí směr: telefon K SOBĚ (strmější displej) = nos NAHORU (pitch < 0)
 {
   const c = fresh()
   for (let i = 0; i < 30; i++) orient(c, { gamma: -60 }) // k sobě
-  assert.ok(c.getInput().pitch > 0.1, 'k sobě musí dát nos dolů')
+  assert.ok(c.getInput().pitch < -0.1, 'k sobě musí zvedat nos')
   for (let i = 0; i < 30; i++) orient(c, { gamma: -20 }) // od sebe
-  assert.ok(c.getInput().pitch < -0.1, 'od sebe musí dát nos nahoru')
+  assert.ok(c.getInput().pitch > 0.1, 'od sebe musí dát nos dolů')
+}
+
+// 2b) stejně to musí platit na výšku (portrét) — Zdeněk hraje takhle.
+// V portrétu nese sklon telefonu beta, ne gamma; převod na osy displeje
+// dělá _orientedTilt a nesmí u toho směr otočit.
+{
+  globalThis.screen.orientation.angle = 0
+  const c = new FlightControls()
+  c.tiltAvailable = true
+  c.setMode('tilt')
+  c.setInvertY(false)
+  c.calibrate()
+  for (let i = 0; i < 45; i++) c._onOrient({ beta: 50, gamma: 0 }) // neutrál
+  for (let i = 0; i < 30; i++) c._onOrient({ beta: 70, gamma: 0 }) // k sobě
+  assert.ok(c.getInput().pitch < -0.1, 'portrét: k sobě musí zvedat nos')
+  for (let i = 0; i < 30; i++) c._onOrient({ beta: 30, gamma: 0 }) // od sebe
+  assert.ok(c.getInput().pitch > 0.1, 'portrét: od sebe musí dát nos dolů')
+  globalThis.screen.orientation.angle = 90
 }
 
 // 3) přepnutí směru obrátí obojí
 {
   const c = fresh()
-  c.setInvertY(false)
+  c.setInvertY(true)
   for (let i = 0; i < 30; i++) orient(c, { gamma: -60 })
-  assert.ok(c.getInput().pitch < -0.1, 'po přepnutí je k sobě nos nahoru')
+  assert.ok(c.getInput().pitch > 0.1, 'po přepnutí je k sobě nos dolů')
 }
 
 // 4) náklon do strany zatáčí na tu stranu, kam se telefon naklonil
@@ -95,10 +118,10 @@ function fresh() {
   c.setMode('touch')
   assert.equal(c.getInput().pitch, 0, 'v dotykovém režimu náklon neřídí')
   c.stick.active = true
-  c.stick.dy = 1 // tah dolů po obrazovce
-  assert.ok(c.getInput().pitch > 0.1, 'tah dolů = nos dolů (stejně jako náklon)')
-  c.setInvertY(false)
-  assert.ok(c.getInput().pitch < -0.1, 'po přepnutí je tah dolů nos nahoru')
+  c.stick.dy = 1 // tah dolů po obrazovce = přitažení kniplu
+  assert.ok(c.getInput().pitch < -0.1, 'tah dolů = nos nahoru (jako přitažení)')
+  c.setInvertY(true)
+  assert.ok(c.getInput().pitch > 0.1, 'po přepnutí je tah dolů nos dolů')
 }
 
 // 7) bez povoleného senzoru se do náklonu přepnout nelze

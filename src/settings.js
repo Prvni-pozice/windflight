@@ -3,10 +3,12 @@
 const KEY = 'windflight-settings'
 
 const DEFAULTS = {
-  // dotykové ovládání (náklon i prstový knipl): true = pohyb K SOBĚ / DOLŮ
-  // po obrazovce dává nos dolů. Ověřeno na telefonu — opačné mapování
-  // hráčům nesedělo. Přepínatelné za letu tlačítkem ⇅.
-  invertY: true,
+  // Dotykové ovládání (náklon i prstový knipl): false = klasika jako knipl,
+  // tedy pohyb K SOBĚ zvedá nos a stoupá se. Ověřeno na telefonu 8. 8. 2026.
+  // (Dřív to působilo obráceně kvůli chybě v kreslení sklonu modelu, ne
+  // kvůli mapování vstupu — viz komentář u model.rotateX v glider.js.)
+  // Přepínatelné za letu tlačítkem ⇅.
+  invertY: false,
   tiltSens: 1,          // násobič citlivosti náklonu (0.6–1.8)
   controlMode: 'tilt',  // 'tilt' | 'touch'
   camera: 'chase',      // 'chase' | 'cockpit'

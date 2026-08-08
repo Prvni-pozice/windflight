@@ -119,11 +119,15 @@ export class Glider {
       this.crashed = true
     }
 
-    // vizuální model = skutečná letová poloha
+    // Vizuální model = skutečná letová poloha.
+    // POZOR na znaménko: nos modelu míří na −z, takže rotateX(+a) ho ZVEDÁ,
+    // kdežto theta > 0 znamená nos DOLŮ (a fyzika podle toho zrychluje).
+    // Bez té mínusky letadlo kreslilo pravý opak toho, co dělalo — hráč
+    // viděl stoupání a přitom zrychloval a padal.
     this.model.position.copy(this.pos)
     this.model.rotation.set(0, 0, 0)
     this.model.rotateY(-this.heading)
-    this.model.rotateX(this.theta * 1.15 + (this.stalled > 0 ? 0.08 * Math.sin(performance.now() * 0.008) : 0))
+    this.model.rotateX(-this.theta * 1.15 + (this.stalled > 0 ? 0.08 * Math.sin(performance.now() * 0.008) : 0))
     this.model.rotateZ(-this.bank)
   }
 

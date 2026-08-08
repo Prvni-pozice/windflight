@@ -18,9 +18,14 @@ Chamonix). Bez termiky a svahového proudění to nejde — měří se celkový 
 - Mobil: **náklon telefonu** (dvojklep = rekalibrace) nebo **knipl prstem** —
   přepíná se za letu tlačítkem vpravo dole, stejně jako směr výšky (⇅),
   pohled (👁) a pauza (⏸). Dvouprstý tap = minimapa.
-- Směr výšky: výchozí je **náklon/tah k sobě = nos dolů** (`invertY = true`
-  v `src/settings.js`). Ověřeno na telefonu; opačné mapování hráčům nesedělo.
-  Hlídá to `tests/controls.test.mjs`, ať se to zase neotočí od stolu.
+- Směr výšky: výchozí je **náklon/tah k sobě = nos nahoru, stoupám**
+  (`invertY = false` v `src/settings.js`), tedy klasika jako knipl.
+  Že to dřív působilo obráceně, nezpůsobilo mapování vstupu, ale **opačné
+  znaménko při kreslení sklonu modelu** (nos modelu míří na −z, takže
+  `rotateX(+theta)` ho zvedal, přestože `theta > 0` je nos dolů). Vizuál
+  a fyzika si tak odporovaly. Hlídají to testy — hlavně
+  `tests/pitch-consistency.test.mjs`, který kontroluje vstup, fyziku
+  i natočení modelu najednou.
 - Volby (režim, směr, citlivost náklonu, kvalita grafiky, kamera) se ukládají
   do localStorage — panel ⚙ na úvodní obrazovce i v pauze.
 
@@ -49,8 +54,9 @@ zatáčení náklonem (opadání roste), přetažení pod ~60 km/h, snos větrem
   `vite.config.js` (store `data/scores.json`).
 
 ## Testy (bez prohlížeče)
-`npm test` — směr a režimy ovládání nad reálným `controls.js`
-(`tests/controls.test.mjs`, stub prohlížeče, žádné závislosti).
+`npm test` — směr a režimy ovládání (`tests/controls.test.mjs`, i portrét)
+a soulad vstup ↔ fyzika ↔ kresba modelu (`tests/pitch-consistency.test.mjs`).
+Stub prohlížeče, žádné závislosti navíc.
 
 AI pilot letí trať nad reálným kódem hry (terén+proudění+fyzika): čte terén
 po trase, vybírá termiky s čistou cestou, konturuje svahy, klesá na brány.
