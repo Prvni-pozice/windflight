@@ -13,8 +13,26 @@ Chamonix). Bez termiky a svahového proudění to nejde — měří se celkový 
 - **Variometr**: pípá ve stoupání, houká v silném klesání; HUD má 20s průměr.
 
 ## Ovládání
-- Desktop: šipky NEBO tažení myší (knipl), R restart, TAB minimapa.
-- Mobil: náklon telefonu (dvojklep = rekalibrace), dvouprstý tap = minimapa.
+- Desktop: šipky NEBO tažení myší (knipl) nebo gamepad, R restart,
+  TAB minimapa, ESC pauza, C kokpit.
+- Mobil: **náklon telefonu** (dvojklep = rekalibrace) nebo **knipl prstem** —
+  přepíná se za letu tlačítkem vpravo dole, stejně jako směr výšky (⇅),
+  pohled (👁) a pauza (⏸). Dvouprstý tap = minimapa.
+- Směr výšky: výchozí je **náklon/tah k sobě = nos dolů** (`invertY = true`
+  v `src/settings.js`). Ověřeno na telefonu; opačné mapování hráčům nesedělo.
+  Hlídá to `tests/controls.test.mjs`, ať se to zase neotočí od stolu.
+- Volby (režim, směr, citlivost náklonu, kvalita grafiky, kamera) se ukládají
+  do localStorage — panel ⚙ na úvodní obrazovce i v pauze.
+
+## Co hráči pomáhá
+- **Doklouzání** u brány: ▲ +180 m = doletím s rezervou, ▼ = tolik chybí
+  (⛰ = limituje hřeben po trase, ne brána samotná). Počítá se s polárou
+  i se složkou větru do směru letu.
+- **Varování před terénem** (GPWS): sonda 8 s po dráze letu, houkání a vibrace.
+- **Pauza**: ESC / ⏸ a automaticky při odchodu z okna; čas letu se sčítá
+  z kroků simulace, takže pauza se do výsledku nezapočítá.
+- **Volný let** (trénink bez bran) a po nárazu **pokračování od poslední
+  brány** — takový let je označený jako mimo žebříček.
 
 ## Fyzika
 Polára (L/D ~42, min. opadání 0,58 m/s), výměna energie rychlost↔výška,
@@ -31,6 +49,9 @@ zatáčení náklonem (opadání roste), přetažení pod ~60 km/h, snos větrem
   `vite.config.js` (store `data/scores.json`).
 
 ## Testy (bez prohlížeče)
+`npm test` — směr a režimy ovládání nad reálným `controls.js`
+(`tests/controls.test.mjs`, stub prohlížeče, žádné závislosti).
+
 AI pilot letí trať nad reálným kódem hry (terén+proudění+fyzika): čte terén
 po trase, vybírá termiky s čistou cestou, konturuje svahy, klesá na brány.
 8 povětrnostních scénářů (slabý den, silný vítr, zataženo, ráno, jiné seedy)
