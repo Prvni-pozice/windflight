@@ -71,6 +71,9 @@ export class UI {
     document.getElementById('quality-sel').addEventListener('change', e => {
       if (this.onQuality) this.onQuality(e.target.value)
     })
+    document.getElementById('rotate-dismiss').addEventListener('click', () => {
+      document.body.classList.add('allow-portrait') // hráč trvá na portrétu
+    })
 
     this.onModeToggle = null
     this.onInvertToggle = null
@@ -425,6 +428,7 @@ export class UI {
     v.className = vario > 0.2 ? 'up' : vario < -2 ? 'down' : ''
     const needle = document.getElementById('vario-needle')
     needle.style.transform = `translateY(${-Math.max(-5, Math.min(5, vario)) * 9}px)`
+    needle.style.background = vario > 0.2 ? '#7dffb0' : (vario < -2 ? '#ff9c8f' : '#dfe9f2')
     document.getElementById('stall-warn').classList.toggle('show', stalled || slow)
     document.getElementById('hud-agl').classList.toggle('low', aglM < 150)
     // šipka: KAM vítr fouká, v souřadnicích obrazovky (nahoře = můj kurz)

@@ -129,7 +129,8 @@
 
     /* ── HUD ── */
     #hud {
-      position: fixed; top: env(safe-area-inset-top, 0); left: 0; right: 0; z-index: 10;
+      position: fixed; top: env(safe-area-inset-top, 0); z-index: 10;
+      left: env(safe-area-inset-left, 0); right: env(safe-area-inset-right, 0);
       display: none; justify-content: center; gap: 8px; padding: 8px;
       pointer-events: none; color: #fff; font-variant-numeric: tabular-nums;
       flex-wrap: nowrap; /* ukazatele NIKDY nepřeskakují na další řádek */
@@ -178,9 +179,19 @@
     }
     #hud.visible ~ #vario-gauge, #vario-gauge.visible { display: flex; }
     #vario-zero { position: absolute; left: 4px; right: 4px; top: 50%; height: 1px; background: rgba(255,255,255,0.35); }
+    /* stupnice: rysky po 2,5 m/s + popisky krajů, ať jehla něco znamená */
+    #vario-gauge .vt { position: absolute; right: 4px; width: 8px; height: 1px; background: rgba(255,255,255,0.28); }
+    #vario-gauge .vt.p25 { top: calc(50% - 23px); }
+    #vario-gauge .vt.m25 { top: calc(50% + 23px); }
+    #vario-gauge::before, #vario-gauge::after {
+      position: absolute; left: 0; right: 0; text-align: center;
+      font-size: 0.5rem; color: rgba(255,255,255,0.45); font-weight: 700;
+    }
+    #vario-gauge::before { content: '+5'; top: 3px; }
+    #vario-gauge::after { content: '−5'; bottom: 3px; }
     #vario-needle {
       width: 18px; height: 6px; border-radius: 3px; background: #7dffb0;
-      transition: transform 0.15s linear;
+      transition: transform 0.15s linear, background 0.2s linear;
     }
 
     #gate-info {
@@ -255,10 +266,22 @@
     }
     #mute-btn, #map-btn { pointer-events: auto; cursor: pointer; }
 
+    /* výzva k otočení na šířku — jen mobil v portrétu, dá se odmítnout */
+    #rotate-hint {
+      position: fixed; inset: 0; z-index: 30; display: none;
+      flex-direction: column; align-items: center; justify-content: center; gap: 14px;
+      background: rgba(8, 18, 30, 0.94); color: #eaf3fb; text-align: center; padding: 28px;
+    }
+    #rotate-hint .rot-ic { font-size: 3rem; }
+    @media (orientation: portrait) and (pointer: coarse) {
+      body:not(.allow-portrait) #rotate-hint { display: flex; }
+    }
+
     /* přepínače ovládání (jen mobil, za letu) — vpravo dole, mimo palec
        na kniplu i mimo minimapu vlevo */
     #ctrl-btns {
-      position: fixed; right: 10px; bottom: calc(12px + env(safe-area-inset-bottom, 0));
+      position: fixed; right: calc(10px + env(safe-area-inset-right, 0));
+      bottom: calc(12px + env(safe-area-inset-bottom, 0));
       z-index: 12; display: none; flex-direction: row; gap: 6px; align-items: center;
     }
     #ctrl-btns.visible { display: flex; }
@@ -358,7 +381,16 @@
     <button class="pill" id="mute-btn">🔊</button>
     <button class="pill" id="map-btn">🗺</button>
   </div>
-  <div id="vario-gauge"><div id="vario-zero"></div><div id="vario-needle"></div></div>
+  <div id="vario-gauge">
+    <div id="vario-zero"></div><div class="vt p25"></div><div class="vt m25"></div>
+    <div id="vario-needle"></div>
+  </div>
+
+  <div id="rotate-hint">
+    <div class="rot-ic">📱 ↻</div>
+    <div>Otoč telefon <b>na šířku</b> — v údolí uvidíš víc a HUD se vejde.</div>
+    <button class="link-btn" id="rotate-dismiss">Chci hrát na výšku</button>
+  </div>
   <canvas id="minimap" style="display:none; position:fixed; left:12px; bottom:calc(60px + env(safe-area-inset-bottom,0)); z-index:10; border-radius:10px; border:1px solid rgba(255,255,255,0.25); opacity:0.92;"></canvas>
   <div id="gate-info" style="display:none"><span id="gate-text"></span> <span id="gate-glide"></span></div>
   <div id="gate-marker"><span class="ring">⭘</span></div>
