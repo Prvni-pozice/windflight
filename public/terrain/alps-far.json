@@ -1,0 +1,12 @@
+{
+  "name": "Alpy kolem Chamonix (daleký horizont)",
+  "lon0": 5.32,
+  "lon1": 8.42,
+  "lat0": 44.84,
+  "lat1": 47,
+  "gw": 384,
+  "gh": 352,
+  "hmin": 99,
+  "hmax": 4699,
+  "source": "Copernicus GLO-90 DEM (ESA), řádky od severu"
+}

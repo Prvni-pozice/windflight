@@ -14,6 +14,37 @@ function mulberry32(seed) {
   }
 }
 
+/**
+ * Materiál kumulu. Mrak není matný povrch — světlo jím prochází a rozptyluje
+ * se, takže vršek svítí, boky jsou perleťové a základna je šedomodrá.
+ * Lambert tohle neumí (spodek by dobarvila zelená ze země), proto pár řádek
+ * vlastního shaderu: barva podle sklonu normály + teplý přísvit od slunce.
+ */
+function cumulusMaterial(sunDir) {
+  return new THREE.ShaderMaterial({
+    uniforms: { uSun: { value: sunDir.clone() } },
+    vertexShader: /* glsl */`
+      varying vec3 vN;
+      void main() {
+        vN = normalize(mat3(modelMatrix) * normal);
+        gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+      }`,
+    fragmentShader: /* glsl */`
+      uniform vec3 uSun;
+      varying vec3 vN;
+      void main() {
+        vec3 n = normalize(vN);
+        float up = n.y * 0.5 + 0.5;                 // 1 = vzhůru, 0 = dolů
+        vec3 base = vec3(0.62, 0.66, 0.74);          // šedomodrá základna
+        vec3 top = vec3(1.0, 0.99, 0.97);            // osvětlený vrchol
+        vec3 col = mix(base, top, smoothstep(0.15, 0.92, up));
+        float sun = max(dot(n, normalize(uSun)), 0.0);
+        col += vec3(0.10, 0.08, 0.05) * pow(sun, 3.0); // přisvícení od slunce
+        gl_FragColor = vec4(col, 1.0);
+      }`,
+  })
+}
+
 export class LiftField {
   /** routePoints: [{x,z}] — trať; podél ní jsou zaručené „domovské" termiky. */
   constructor(scene, terrain, cond, sunDir, routePoints = [], seed = 20260801) {
@@ -199,26 +230,39 @@ export class LiftField {
     // svahové proudění: proudící částice na návětrných svazích (vidět, kde zvedá)
     this._buildRidgeViz(rng)
 
-    // kumulus nad každou termikou (pár koulí) — ukazuje strop stoupání
+    // Kumulus nad každou termikou — ukazuje strop stoupání.
+    // Tvar: plochá základna (tam končí stoupák) a květákovitý vršek, ne
+    // zploštělá koule. Dřív z toho byly olivové "létající talíře": průhledný
+    // Lambert prosvítal vlastními vnitřními stěnami a spodek dobarvovala
+    // zelená ze země. Teď je materiál neprůhledný a barvu si řídí sám.
     this.clouds = []
+    const cloudMat = cumulusMaterial(this.sunDir)
     for (const th of this.thermals) {
       const cl = new THREE.Group()
-      // jeden sloučený mesh na mrak (draw-cally!): obláčky + tmavší basa
       const parts = []
-      const puffs = 3 + (rng() * 3 | 0)
-      for (let p = 0; p < puffs; p++) {
-        const r = 130 + rng() * 170
-        const gpuff = new THREE.SphereGeometry(r, 10, 8)
-        gpuff.scale(1, 0.55, 1)
-        gpuff.translate((rng() - 0.5) * 420, (rng() - 0.3) * 90, (rng() - 0.5) * 420)
-        parts.push(gpuff)
+      // spodní věnec: široké chuchvalce těsně nad základnou
+      const ring = 3 + (rng() * 3 | 0)
+      for (let p = 0; p < ring; p++) {
+        const a = p / ring * Math.PI * 2 + rng()
+        const rr = 150 + rng() * 90
+        const g = new THREE.SphereGeometry(rr, 10, 8)
+        // nestejné zploštění + pootočení, ať to nejsou balonky ze stejné formy
+        g.scale(0.85 + rng() * 0.5, 0.62 + rng() * 0.3, 0.85 + rng() * 0.5)
+        g.rotateY(rng() * Math.PI)
+        g.translate(Math.cos(a) * (120 + rng() * 130), rr * 0.3, Math.sin(a) * (120 + rng() * 130))
+        parts.push(g)
       }
-      const gbase = new THREE.CylinderGeometry(300, 300, 30, 12)
-      parts.push(gbase)
+      // vršek: menší koule výš — květák
+      const tops = 2 + (rng() * 2 | 0)
+      for (let p = 0; p < tops; p++) {
+        const rr = 90 + rng() * 110
+        const g = new THREE.SphereGeometry(rr, 10, 8)
+        g.scale(0.9 + rng() * 0.4, 0.8 + rng() * 0.45, 0.9 + rng() * 0.4)
+        g.translate((rng() - 0.5) * 220, 150 + rng() * 190, (rng() - 0.5) * 220)
+        parts.push(g)
+      }
       const merged = mergeGeometries(parts)
-      const mesh = new THREE.Mesh(merged, new THREE.MeshLambertMaterial({
-        color: 0xffffff, transparent: true, opacity: 0.92,
-      }))
+      const mesh = new THREE.Mesh(merged, cloudMat)
       cl.add(mesh)
       cl.userData.cycle = rng()
       const drift = (th.top - th.ground) * 0.11

@@ -3,6 +3,7 @@
 // Úkol: prolétnout všemi branami — bez využití termiky a svahů to nejde.
 import * as THREE from 'three'
 import { Terrain } from './terrain.js'
+import { FarTerrain } from './far-terrain.js'
 import { loadWeather, deriveConditions, sunPosition, sunDirVector } from './weather.js'
 import { LiftField } from './lift.js'
 import { Glider, V_STALL, V_MIN_SINK, polarSink } from './glider.js'
@@ -17,9 +18,10 @@ import * as settings from './settings.js'
 const START = { lat: 45.9290, lon: 6.8560, alt: 2600, headingDeg: 20 } // nad Chamonix, čelem k Bréventu
 
 class Game {
-  constructor(terrain, weather) {
+  constructor(terrain, weather, far) {
     this.terrain = terrain
     this.weather = weather
+    this.far = far
     this.state = 'menu' // menu | flying | done | crashed
     this.runMs = 0      // čas letu (jen běžící simulace, bez pauz)
     this.paused = false
@@ -135,12 +137,24 @@ class Game {
     // zlatá hodinka: nízké slunce = teplé světlo (skutečný čas v Chamonix)
     const golden = Math.max(0, Math.min(1, 1 - this.sun.elevDeg / 22))
     const sunCol = new THREE.Color(0xfff3dd).lerp(new THREE.Color(0xffb066), golden * 0.85)
-    const sunLight = new THREE.DirectionalLight(sunCol, 2.1 * (1 - 0.45 * cc))
+    // Světelný rozpočet: dřív dir 2,1 + hemi 0,85 přes už zapečený hillshade
+    // = přes trojnásobek, všechno vypálené do sytě zelené. Teď stínuje jen
+    // skutečné slunce a součet drží pod ~1,8, takže terén má tvar a barvu.
+    const sunLight = new THREE.DirectionalLight(sunCol, 1.42 * (1 - 0.5 * cc))
     sunLight.position.copy(this.sunDir).multiplyScalar(20000)
     this.scene.add(sunLight)
-    this.scene.add(new THREE.HemisphereLight(0xcfe4ff, 0x8ba86e, 0.85 + 0.5 * cc))
+    // oblohové světlo vyplňuje stíny domodra, odraz od země dozelena
+    // Oblohové světlo musí být silné: v horách svítí i stinná strana hřebene
+    // rozptýleným světlem oblohy (proto jsou stíny modré, ne černé).
+    // Barva musí být bledá: sytě modré nebe obarvilo celou severní stěnu
+    // masivu do ocelova, přitom sníh ve stínu je světle modrobílý.
+    this.scene.add(new THREE.HemisphereLight(0xc2d8ee, 0x7d8a63, 0.8 + 0.5 * cc))
 
     // obloha: gradient + sluneční kotouč + opar u horizontu
+    // barva oparu se počítá dřív než obloha — sdílejí ji (viz uHorizon)
+    const fogCol = new THREE.Color().lerpColors(
+      new THREE.Color(0xcfe0ee), new THREE.Color(0xc2c9d1), cc)
+
     const skyMat = new THREE.ShaderMaterial({
       side: THREE.BackSide,
       depthWrite: false,
@@ -148,6 +162,9 @@ class Game {
         uSunDir: { value: this.sunDir },
         uHaze: { value: 0.5 + this.weather.cloudCover * 0.4 },
         uGolden: { value: golden },
+        // obzor musí mít PŘESNĚ barvu oparu, jinak je vidět šev tam, kde
+        // vzdálené hory přecházejí do oblohy
+        uHorizon: { value: fogCol },
       },
       vertexShader: /* glsl */`
         varying vec3 vDir;
@@ -159,61 +176,40 @@ class Game {
         uniform vec3 uSunDir;
         uniform float uHaze;
         uniform float uGolden;
+        uniform vec3 uHorizon;
         varying vec3 vDir;
         void main() {
           float h = max(vDir.y, 0.0);
-          vec3 zenith = mix(vec3(0.16, 0.38, 0.75), vec3(0.22, 0.3, 0.55), uGolden);
-          vec3 horizon = mix(vec3(0.78, 0.86, 0.93), vec3(0.85, 0.88, 0.9), uHaze);
-          horizon = mix(horizon, vec3(0.98, 0.72, 0.45), uGolden * 0.75); // západ/východ
-          vec3 col = mix(horizon, zenith, pow(h, 0.5));
+          vec3 zenith = mix(vec3(0.13, 0.34, 0.72), vec3(0.20, 0.28, 0.54), uGolden);
+          vec3 horizon = mix(uHorizon, vec3(0.98, 0.72, 0.45), uGolden * 0.7);
+          // mocnina 0.42 drží modrou níž k obzoru — obloha nad horami
+          // není bílá až do půli nebe
+          vec3 col = mix(horizon, zenith, pow(h, 0.42));
           float s = max(dot(vDir, uSunDir), 0.0);
           vec3 sunTint = mix(vec3(1.0, 0.93, 0.8), vec3(1.0, 0.62, 0.3), uGolden);
           col += sunTint * (pow(s, 800.0) * 1.4 + pow(s, 32.0) * (0.18 + uGolden * 0.25));
-          col = mix(col, vec3(0.72, 0.78, 0.83), smoothstep(0.02, -0.1, vDir.y));
+          // pod obzorem plynule do oparu, ať tam není ostrá hrana
+          col = mix(col, uHorizon, smoothstep(0.03, -0.08, vDir.y));
           gl_FragColor = vec4(col, 1.0);
         }`,
     })
     this.sky = new THREE.Mesh(new THREE.SphereGeometry(70000, 32, 16), skyMat)
     this.scene.add(this.sky)
 
-    const fogCol = new THREE.Color().lerpColors(
-      new THREE.Color(0xdce8f2), new THREE.Color(0xc6ccd3), cc)
-    this.scene.fog = new THREE.Fog(fogCol, 9000 - cc * 3500, 60000 - cc * 18000)
+    // Vzdušná perspektiva: v horách je hloubka vidět hlavně přes opar.
+    // Lineární mlha ubírala i ve 20 km sotva pětinu, takže vzdálené hřebeny
+    // vypadaly jako kulisa nalepená na blízké. Exponenciální mlha odpovídá
+    // tomu, jak světlo v atmosféře ubývá doopravdy.
+    this.scene.fog = new THREE.FogExp2(fogCol, 0.000026 * (1 + cc * 0.5))
 
-    this._fogNear0 = this.scene.fog.near
-    this._fogFar0 = this.scene.fog.far
-    this.terrain.addTo(this.scene)
+    this._fogDensity0 = this.scene.fog.density
+    // Horizont: skutečné Alpy do ~120 km (FarTerrain). Když se data
+    // nenačtou, zůstane aspoň zástěra pod okrajem mapy, ať není vidět
+    // do prázdna.
+    this.terrain.addTo(this.scene, { withSkirt: !this.far })
+    if (this.far) this.far.addTo(this.scene)
     buildScenery(this.scene, this.terrain)
     // les staví až _applyQuality() — jeho hustota závisí na nastavení
-
-    // silueta dalekých hřebenů na obzoru (prstenec zubatého pásu v oparu)
-    {
-      const N = 160, R = 52000
-      const pos = []
-      const cx = this.terrain.sizeX / 2, cz = this.terrain.sizeZ / 2
-      let ph = 0
-      for (let i = 0; i <= N; i++) {
-        const a = i / N * Math.PI * 2
-        ph += 0.9 + Math.sin(i * 12.9898) * 0.4
-        const hgt = 2600 + Math.sin(ph) * 900 + Math.sin(ph * 2.7) * 450
-        const x = cx + Math.cos(a) * R, z = cz + Math.sin(a) * R
-        pos.push(x, -200, z, x, hgt, z)
-      }
-      const idx = []
-      for (let i = 0; i < N; i++) {
-        const b = i * 2
-        idx.push(b, b + 1, b + 2, b + 1, b + 3, b + 2)
-      }
-      const geo = new THREE.BufferGeometry()
-      geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3))
-      geo.setIndex(idx)
-      geo.computeVertexNormals()
-      const ridge = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({
-        color: new THREE.Color(0x9fb2c4).lerp(new THREE.Color(0xb9bec6), cc),
-        side: THREE.DoubleSide, fog: false, transparent: true, opacity: 0.55,
-      }))
-      this.scene.add(ridge)
-    }
     this.gates = new Gates(this.scene, this.terrain)
     const route = [this.startPoint()].concat(this.gates.list.map(g => ({ x: g.x, z: g.z })))
     this.lift = new LiftField(this.scene, this.terrain, this.cond, this.sunDir, route)
@@ -308,9 +304,8 @@ class Game {
     this._prMax = Math.min(devicePixelRatio, { low: 1, med: 1.5, high: 2 }[q])
     this._pr = this._prMax
     this.renderer.setPixelRatio(this._pr)
-    const k = { low: 0.5, med: 0.75, high: 1 }[q]
-    this.scene.fog.near = this._fogNear0 * k
-    this.scene.fog.far = this._fogFar0 * k
+    // nižší kvalita = hustší opar, tím se schová kratší dohlednost
+    this.scene.fog.density = this._fogDensity0 * { low: 1.8, med: 1.25, high: 1 }[q]
     if (this.forest) this.forest.dispose()
     this.forest = new Forest(this.scene, this.terrain, q)
     this.forest.update(this.camera.position.x, this.camera.position.z)
@@ -645,8 +640,15 @@ const _proj = new THREE.Vector3()
 // ── bootstrap: terén + počasí paralelně ──
 const loadingEl = document.getElementById('loading')
 Promise.all([Terrain.load(), loadWeather()])
-  .then(([terrain, weather]) => {
-    new Game(terrain, weather)
+  .then(async ([terrain, weather]) => {
+    // daleký horizont je bonus — když se nepovede, hra se rozjede bez něj
+    let far = null
+    const q = settings.get('quality')
+    const lowEnd = q === 'low' || (q !== 'high' && q !== 'med' && matchMedia('(pointer: coarse)').matches)
+    try {
+      far = await FarTerrain.load(terrain, lowEnd ? 2 : 1)
+    } catch (e) { console.warn('horizont nenačten:', e) }
+    new Game(terrain, weather, far)
     loadingEl.style.display = 'none'
   })
   .catch(e => {

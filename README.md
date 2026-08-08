@@ -43,10 +43,28 @@ Chamonix). Bez termiky a svahového proudění to nejde — měří se celkový 
 Polára (L/D ~42, min. opadání 0,58 m/s), výměna energie rychlost↔výška,
 zatáčení náklonem (opadání roste), přetažení pod ~60 km/h, snos větrem.
 
+## Grafika (přestavba 8. 8. 2026, ověřená screenshoty)
+- **Světlo**: stínuje jen skutečné slunce. Dřív se stínovalo dvakrát
+  (zapečený hillshade × Lambert) a scéna byla přepálená do sytě zelené.
+- **Barvy terénu**: alpská hypsometrie — sněžná čára i horní hranice lesa
+  jdou výš na jižních svazích (`nz` normály), mezi holemi a skálou je suť.
+- **Okluze oblohy** zapečená z heightmapy (8 směrů do 2,6 km): údolí ztmavne,
+  hřebeny vystoupí. Na sněhu se tlumí — bílý povrch nemá černé stíny.
+- **Vzdušná perspektiva**: FogExp2 v barvě, kterou má i obzor na obloze
+  (uniforma `uHorizon`), takže mezi horami a nebem není šev.
+- **Daleký horizont**: skutečné Alpy do ~120 km, viz `src/far-terrain.js`.
+- **Kumuly** mají plochou základnu a květákový vršek, vlastní shader
+  (vršek svítí, základna šedomodrá) místo průsvitného Lambertu.
+- Ladění denní doby bez čekání: `?cas=8:00` (UTC) v URL.
+
 ## Stack a data
 - Vite + Three.js, WebAudio (vario + šum větru). Port dev serveru **5185**.
 - Terén: `scripts/fetch_terrain.mjs` (Copernicus GLO-30 z AWS Open Data →
   `public/terrain/chamonix.bin`, Uint16 metry, 640×576).
+- Horizont: `scripts/fetch_far_terrain.mjs` (Copernicus GLO-90, 12 dlaždic →
+  `public/terrain/alps-far.bin`, 384×352, ≈650 m/buňku, 264 kB). Používá
+  stejný přepočet stupňů na metry jako blízká mapa, takže na ni navazuje;
+  uvnitř mapy se zanořuje pod ni, aby nikde neprobleskla.
 - Počasí: Open-Meteo (vítr 850 hPa, oblačnost, teplota), fallback bez API.
 - Slunce dle reálného času (solární výpočet) → termika na osluněných svazích.
 - Žebříček: `api/scores.js` (Vercel KV/Upstash, klíč `windflight-store`),

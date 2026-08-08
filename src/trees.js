@@ -112,8 +112,10 @@ function buildTreeAssets() {
   for (let layer = 0; layer < 9; layer++) {
     const y = 12 + layer * 12
     const half = 5 + layer * 3.1
-    const g = 62 + rng() * 30 - layer * 3
-    ctx.fillStyle = `rgb(${18 + layer * 2}, ${g | 0}, ${26 + layer * 2})`
+    // Smrk je tmavý, ale ne černý — z letu se les jinak čte jako pepř.
+    // Spodní patra do stínu, horní k slunci.
+    const g = 92 + rng() * 34 - layer * 4
+    ctx.fillStyle = `rgb(${34 + layer * 3}, ${g | 0}, ${44 + layer * 2})`
     ctx.beginPath()
     ctx.moveTo(32, y - 14)
     for (let k = -4; k <= 4; k++) {
@@ -133,8 +135,11 @@ function buildTreeAssets() {
   const geo = mergeGeo(q1, q2)
   geo.translate(0, 15, 0)
 
-  const mat = new THREE.MeshLambertMaterial({
+  // Lambert dělal ze stromů černé tečky (smrk je tmavý a ještě se stínoval).
+  // Basic + jemné dobarvení podle výšky drží les čitelný i z letu.
+  const mat = new THREE.MeshBasicMaterial({
     map: tex, alphaTest: 0.45, side: THREE.DoubleSide,
+    color: 0xd6e0cd, // jemné prosvětlení textury (násobí se do ní)
   })
   return { geo, mat }
 }

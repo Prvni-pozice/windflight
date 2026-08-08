@@ -43,10 +43,11 @@ export class Gates {
       if (prev) g.mesh.lookAt(prev.x, g.y, prev.z)
     }
     // světelný sloup nad AKTUÁLNÍ bránou — vidět zdaleka
+    // užší a průsvitnější než dřív — sloup má bránu najít, ne přebít krajinu
     this.beam = new THREE.Mesh(
-      new THREE.CylinderGeometry(26, 26, 2600, 12, 1, true),
+      new THREE.CylinderGeometry(16, 16, 2600, 12, 1, true),
       new THREE.MeshBasicMaterial({
-        color: 0x37d67a, transparent: true, opacity: 0.16,
+        color: 0x37d67a, transparent: true, opacity: 0.1,
         side: THREE.DoubleSide, depthWrite: false,
       }),
     )
@@ -94,7 +95,7 @@ export class Gates {
     if (g) {
       const s = 1 + Math.sin(t * 3.5) * 0.04
       g.mesh.scale.set(s, s, s)
-      this.beam.material.opacity = 0.12 + Math.sin(t * 2.2) * 0.05
+      this.beam.material.opacity = 0.08 + Math.sin(t * 2.2) * 0.035
     }
   }
 }

@@ -50,9 +50,18 @@ export function deriveConditions(w, sunElevDeg) {
   return { thermalStrength, cloudBase: Math.min(4100, Math.max(2600, cloudBase)), windVec }
 }
 
-/** Poloha slunce pro daný čas v Chamonix (přibližný solární výpočet). */
+/** Poloha slunce pro daný čas v Chamonix (přibližný solární výpočet).
+ *  Pro ladění grafiky lze čas přebít v URL: `?cas=8:00` (UTC). */
 export function sunPosition(date = new Date()) {
   const rad = Math.PI / 180
+  if (typeof location !== 'undefined') {
+    const q = new URLSearchParams(location.search).get('cas')
+    if (q && /^\d{1,2}:\d{2}$/.test(q)) {
+      const [hh, mm] = q.split(':').map(Number)
+      date = new Date(date)
+      date.setUTCHours(hh, mm, 0, 0)
+    }
+  }
   const days = (date - new Date(date.getFullYear(), 0, 0)) / 86400000
   const decl = -23.44 * Math.cos((360 / 365) * (days + 10) * rad) // deklinace
   const solarTime = date.getUTCHours() + date.getUTCMinutes() / 60 + LON / 15

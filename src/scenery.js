@@ -25,11 +25,13 @@ export function buildScenery(scene, terrain) {
   let total = 0
   for (const t of TOWNS) total += t[2]
 
+  // Stěny byly skoro bílé a z výšky z nich bylo bílé konfety rozsypané po
+  // stráni. Savojská vesnice je tlumené dřevo a šedé šindele.
   const houseGeo = new THREE.BoxGeometry(14, 9, 20)
-  const houseMat = new THREE.MeshLambertMaterial({ color: 0xd9d2c4 })
+  const houseMat = new THREE.MeshLambertMaterial({ color: 0xb3a894 })
   const houses = new THREE.InstancedMesh(houseGeo, houseMat, total)
   const roofGeo = new THREE.ConeGeometry(13, 7, 4)
-  const roofMat = new THREE.MeshLambertMaterial({ color: 0x77503c })
+  const roofMat = new THREE.MeshLambertMaterial({ color: 0x5c4a40 })
   const roofs = new THREE.InstancedMesh(roofGeo, roofMat, total)
 
   const m = new THREE.Matrix4()

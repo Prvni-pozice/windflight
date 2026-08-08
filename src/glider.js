@@ -133,8 +133,9 @@ export class Glider {
 
   _buildModel(scene) {
     const g = new THREE.Group()
-    const white = new THREE.MeshLambertMaterial({ color: 0xf2f4f6 })
-    const red = new THREE.MeshLambertMaterial({ color: 0xd03a2c })
+    // Kluzák je v chase kameře pořád na očích, tak ať má lesk laminátu.
+    const white = new THREE.MeshPhongMaterial({ color: 0xf2f4f6, shininess: 70, specular: 0x9aa4ad })
+    const red = new THREE.MeshPhongMaterial({ color: 0xd03a2c, shininess: 60, specular: 0x8a5c56 })
 
     // trup: štíhlý, kapkovitý
     const fus = new THREE.Mesh(new THREE.CapsuleGeometry(0.42, 6.4, 6, 10), white)
@@ -147,7 +148,10 @@ export class Glider {
     // kabina
     const canopy = new THREE.Mesh(
       new THREE.SphereGeometry(0.4, 10, 8),
-      new THREE.MeshLambertMaterial({ color: 0x39485e }),
+      new THREE.MeshPhongMaterial({
+        color: 0x2b3a4e, shininess: 110, specular: 0xcfe4ff,
+        transparent: true, opacity: 0.75,
+      }),
     )
     canopy.position.set(0, 0.32, -2.1)
     canopy.scale.set(0.8, 0.62, 1.7)
