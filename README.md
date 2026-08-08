@@ -64,6 +64,10 @@ po trase, vybírá termiky s čistou cestou, konturuje svahy, klesá na brány.
 — vše dokončitelné za 20–30 min. Skript: scratchpad `test_windflight.mjs`.
 
 ## Deploy (Vercel)
-1. Vercel projekt (preset Vite) napojený na GitHub `Prvni-pozice/windflight`.
-2. Storage → Upstash Redis (env `KV_REST_API_URL/TOKEN`) — stačí připojit
-   stejnou DB jako u ostatních her (vlastní klíč `windflight-store`).
+Živě na **https://windflight.vercel.app** — Vercel projekt (preset Vite) je
+napojený na GitHub `Prvni-pozice/windflight`, push do `master` = deploy.
+Ovládání náklonem funguje jen tady (DeviceOrientation vyžaduje HTTPS),
+na lokálním dev serveru na portu 5185 naskočí knipl prstem.
+
+Žebříček potřebuje Storage → Upstash Redis (env `KV_REST_API_URL/TOKEN`) —
+lze sdílet stejnou DB jako ostatní hry (vlastní klíč `windflight-store`).
