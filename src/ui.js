@@ -220,6 +220,16 @@ export class UI {
     c.restore()
   }
 
+  /** @param secToImpact 0 = čisto, jinak sekundy do nárazu podle dráhy letu */
+  setTerrainWarn(secToImpact) {
+    const el = document.getElementById('terrain-warn')
+    el.classList.toggle('show', secToImpact > 0)
+    if (secToImpact > 0) {
+      el.textContent = secToImpact < 4 ? '⛰ TERÉN — VYBER TO!' : '⛰ terén v dráze letu'
+      el.classList.toggle('urgent', secToImpact < 4)
+    }
+  }
+
   showPause(info) {
     document.getElementById('pause-info').textContent = info || 'Čas letu stojí'
     this.pauseOverlay.classList.remove('hidden')
@@ -284,6 +294,8 @@ export class UI {
     document.getElementById('vario-gauge').classList.remove('visible')
     document.getElementById('tilt-hint').style.display = 'none'
     document.getElementById('ctrl-btns').classList.remove('visible')
+    document.getElementById('stall-warn').classList.remove('show')
+    this.setTerrainWarn(0)
     this.pauseOverlay.classList.add('hidden')
     this.setCountdown(0)
     this.gateMarker.style.display = 'none'

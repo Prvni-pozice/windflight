@@ -298,6 +298,18 @@ class Game {
         if (navigator.vibrate) navigator.vibrate(60)
         if (!this.gates.next) { this._finish() }
       }
+      // varování před terénem: houkání + vibrace, dokud je svah v dráze
+      const ttc = this._terrainAlert()
+      this.ui.setTerrainWarn(ttc)
+      if (ttc > 0) {
+        this._gpwsT = (this._gpwsT ?? 9) + dt
+        if (this._gpwsT > (ttc < 4 ? 0.45 : 0.8)) { // blíž = hustěji
+          this._gpwsT = 0
+          this.vario.blip(340, 0.24, 'square', 0.1, 210)
+          if (navigator.vibrate) navigator.vibrate(35)
+        }
+      } else this._gpwsT = 9
+
       if (this.glider.stalled > 0 && !this._stallBuzz) {
         this._stallBuzz = true
         if (navigator.vibrate) navigator.vibrate([40, 60, 40])
@@ -385,6 +397,23 @@ class Game {
     _lookTarget.set(g.pos.x + sh * 60, g.pos.y - 4, g.pos.z - ch * 60)
     this.camera.lookAt(_lookTarget)
     this.camera.rotation.z += -g.bank * 0.35 // náklon horizontu v zatáčce
+  }
+
+  /**
+   * Varování před terénem (jako GPWS v dopravním letadle): sonda po
+   * současné dráze letu — kurz + vítr + aktuální opadání. Vrací počet
+   * sekund do nárazu (0 = čisto). Rovná dráha je záměrně konzervativní:
+   * v zatáčce svah minu, ale radši varovat dřív než později.
+   */
+  _terrainAlert() {
+    const g = this.glider
+    const vx = Math.sin(g.heading) * g.v + this.cond.windVec.x
+    const vz = -Math.cos(g.heading) * g.v + this.cond.windVec.z
+    for (let s = 1; s <= 8; s++) {
+      const x = g.pos.x + vx * s, z = g.pos.z + vz * s, y = g.pos.y + g.vario * s
+      if (y < this.terrain.heightAt(x, z) + 30) return s
+    }
+    return 0
   }
 
   /**

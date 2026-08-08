@@ -211,6 +211,14 @@
       pointer-events: none; font-size: 1.3rem; font-weight: 800; color: #ffb02e;
       text-shadow: 0 2px 14px rgba(255, 176, 46, 0.6); opacity: 0;
     }
+    #terrain-warn {
+      position: fixed; top: 41%; left: 0; right: 0; z-index: 11; text-align: center;
+      pointer-events: none; font-size: 1.2rem; font-weight: 800; color: #ffd23f;
+      text-shadow: 0 2px 14px rgba(0, 0, 0, 0.7); opacity: 0;
+    }
+    #terrain-warn.show { opacity: 1; }
+    #terrain-warn.urgent { color: #ff6a5a; animation: stallPulse 0.5s ease-in-out infinite; }
+
     #stall-warn.show { opacity: 1; animation: stallPulse 0.7s ease-in-out infinite; }
     @keyframes stallPulse { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.07); } }
 
@@ -328,6 +336,7 @@
   <div id="thermal-marker"><span class="ic">🌀</span><span class="dist"></span></div>
   <div id="gate-flash"></div>
   <div id="stall-warn">⚠ MALÁ RYCHLOST — potlač!</div>
+  <div id="terrain-warn"></div>
   <div id="tilt-hint">Dvojklepem kdykoli zkalibruješ neutrální držení telefonu</div>
   <div id="ctrl-btns">
     <button id="pause-btn">⏸</button>

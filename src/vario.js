@@ -47,6 +47,25 @@ export class Vario {
     return this.muted
   }
 
+  /** Krátký tón — upozornění, průlet bránou, náraz. Jednorázový oscilátor,
+   *  ať se nemíchá s pípáním varia. */
+  blip(freq = 660, dur = 0.12, type = 'sine', vol = 0.12, slideTo = null) {
+    if (!this.ctx || this.muted) return
+    const t = this.ctx.currentTime
+    const o = this.ctx.createOscillator()
+    const g = this.ctx.createGain()
+    o.type = type
+    o.frequency.setValueAtTime(freq, t)
+    if (slideTo) o.frequency.exponentialRampToValueAtTime(Math.max(20, slideTo), t + dur)
+    g.gain.setValueAtTime(0.0001, t)
+    g.gain.linearRampToValueAtTime(vol, t + 0.012)
+    g.gain.exponentialRampToValueAtTime(0.0001, t + dur)
+    o.connect(g)
+    g.connect(this.ctx.destination)
+    o.start(t)
+    o.stop(t + dur + 0.03)
+  }
+
   /** Okamžité ticho (pauza, konec letu). */
   silence() {
     if (!this.ctx) return
