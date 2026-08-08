@@ -5,7 +5,7 @@ import * as THREE from 'three'
 import { Terrain } from './terrain.js'
 import { loadWeather, deriveConditions, sunPosition, sunDirVector } from './weather.js'
 import { LiftField } from './lift.js'
-import { Glider, V_STALL } from './glider.js'
+import { Glider, V_STALL, V_MIN_SINK, polarSink } from './glider.js'
 import { Gates, GATE_R } from './gates.js'
 import { Vario } from './vario.js'
 import { FlightControls } from './controls.js'
@@ -387,6 +387,36 @@ class Game {
     this.camera.rotation.z += -g.bank * 0.35 // náklon horizontu v zatáčce
   }
 
+  /**
+   * Doklouzání na další bránu — nejdůležitější údaj plachtaře: o kolik
+   * metrů nad (▲) nebo pod (▼) ni doletím, když teď zamířím přímo tam.
+   * Počítá se s reálnou polárou, se složkou větru do směru letu (protivítr
+   * klouzavost nad zemí ničí) a s hřebeny po trase — mnohdy nerozhoduje
+   * brána, ale hora před ní.
+   */
+  _finalGlide() {
+    const gate = this.gates.next
+    if (!gate) return null
+    const p = this.glider.pos
+    const dx = gate.x - p.x, dz = gate.z - p.z
+    const dist = Math.hypot(dx, dz)
+    if (dist < 1) return { margin: p.y - gate.y, ridge: false }
+    const ux = dx / dist, uz = dz / dist
+    const w = this.cond.windVec
+    const vAir = V_MIN_SINK + 3 // rozumná přeskoková rychlost (~94 km/h)
+    const vGround = Math.max(5, vAir + w.x * ux + w.z * uz)
+    const ld = vGround / polarSink(vAir)
+    let need = gate.y + dist / ld
+    let ridge = false
+    const steps = Math.min(40, Math.max(2, Math.ceil(dist / 300)))
+    for (let i = 1; i < steps; i++) {
+      const f = i / steps
+      const h = this.terrain.heightAt(p.x + dx * f, p.z + dz * f) + 60 + (dist * (1 - f)) / ld
+      if (h > need) { need = h; ridge = true }
+    }
+    return { margin: p.y - need, ridge }
+  }
+
   // marker nejbližšího použitelného stoupáku (🌀) — navádění na termiku
   _updateThermalMarker() {
     const el = document.getElementById('thermal-marker')
@@ -426,7 +456,7 @@ class Game {
     el.style.left = sx + 'px'
     el.style.top = sy + 'px'
     const d = Math.hypot(g.x - this.glider.pos.x, g.y - this.glider.pos.y, g.z - this.glider.pos.z)
-    this.ui.setGateInfo(this.gates.current + 1, this.gates.total, g.name, d)
+    this.ui.setGateInfo(this.gates.current + 1, this.gates.total, g.name, d, this._finalGlide())
   }
 
   _onResize() {

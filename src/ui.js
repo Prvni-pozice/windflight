@@ -331,9 +331,15 @@ export class UI {
     el.classList.add('show')
   }
 
-  setGateInfo(num, total, name, distM) {
-    document.getElementById('gate-info').textContent =
+  setGateInfo(num, total, name, distM, glide) {
+    document.getElementById('gate-text').textContent =
       `⭘ ${num}/${total} ${name} · ${distM > 1500 ? (distM / 1000).toFixed(1) + ' km' : Math.round(distM) + ' m'}`
+    const el = document.getElementById('gate-glide')
+    if (!glide) { el.textContent = ''; return }
+    const m = Math.round(glide.margin)
+    // ▲ = tolik metrů přiletím nad bránu, ▼ = tolik mi chybí
+    el.textContent = `${glide.ridge ? '⛰' : ''}${m >= 0 ? '▲ +' : '▼ '}${m} m`
+    el.className = m > 150 ? 'ok' : (m >= 0 ? 'tight' : 'short')
   }
 
   setVarioAvg(v) {

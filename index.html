@@ -170,6 +170,14 @@
       padding: 8px 18px; border-radius: 999px; font-size: 1rem; font-weight: 600;
       font-variant-numeric: tabular-nums; white-space: nowrap;
     }
+    /* doklouzání: ▲ zelená = mám nad bránou rezervu, ▼ červená = nedoletím */
+    #gate-glide { margin-left: 4px; }
+    #gate-glide.ok { color: #7dffb0; }
+    #gate-glide.tight { color: #ffd23f; }
+    #gate-glide.short { color: #ff9c8f; }
+    @media (max-width: 760px) {
+      #gate-info { font-size: 0.85rem; padding: 6px 12px; }
+    }
     #gate-marker {
       position: fixed; z-index: 9; pointer-events: none; display: none;
       transform: translate(-50%, -50%); flex-direction: column; align-items: center;
@@ -261,7 +269,8 @@
       <b>Desktop:</b> ←→↑↓ šipky, tažení myší (knipl) nebo gamepad · R restart · TAB mapa · ESC pauza<br>
       <b>Mobil:</b> náklon telefonu, nebo <b>✋ knipl prstem</b> — přepneš tlačítkem vpravo dole.
       Tlačítko <b>⇅</b> obrací směr výšky, dvojklep rekalibruje držení telefonu.<br>
-      <span class="tip">⚠ Pod ~60 km/h přetažení. V zatáčce klesáš rychleji. Variometr pípá ve stoupání.</span>
+      <span class="tip">⚠ Pod ~60 km/h přetažení. V zatáčce klesáš rychleji. Variometr pípá ve stoupání.<br>
+      U brány dole svítí <b>doklouzání</b>: ▲ +180 m = doletíš s rezervou, ▼ = tolik ti chybí (⛰ = brzdí tě hřeben).</span>
     </div>
     <button id="start-btn">▶&nbsp; Vzlétnout</button>
     <div class="best-line" id="start-best"></div>
@@ -314,7 +323,7 @@
   </div>
   <div id="vario-gauge"><div id="vario-zero"></div><div id="vario-needle"></div></div>
   <canvas id="minimap" style="display:none; position:fixed; left:12px; bottom:calc(60px + env(safe-area-inset-bottom,0)); z-index:10; border-radius:10px; border:1px solid rgba(255,255,255,0.25); opacity:0.92;"></canvas>
-  <div id="gate-info" style="display:none"></div>
+  <div id="gate-info" style="display:none"><span id="gate-text"></span> <span id="gate-glide"></span></div>
   <div id="gate-marker"><span class="ring">⭘</span></div>
   <div id="thermal-marker"><span class="ic">🌀</span><span class="dist"></span></div>
   <div id="gate-flash"></div>
