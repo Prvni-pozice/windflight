@@ -304,11 +304,14 @@ class Game {
 
   _finish() {
     this.state = 'done'
+    this.vario.silence() // fanfáru brány to neutne, jede po vlastních uzlech
     this.ui.showWin(this.runMs, this.scoring)
   }
 
   _crash() {
     this.state = 'crashed'
+    this.vario.crashSound()
+    this.vario.silence()
     const wasStall = this.glider.stalled > 0
     const free = this.runMode === 'free'
     this.ui.showCrash(this.gates.current, free ? 0 : this.gates.total,
@@ -365,6 +368,7 @@ class Game {
 
       if (this.runMode !== 'free' && this.gates.check(this.glider.pos)) {
         this.ui.gatePassed(this.gates.current, this.gates.total)
+        this.vario.gateChime(!this.gates.next)
         if (navigator.vibrate) navigator.vibrate(60)
         if (!this.gates.next) { this._finish() }
       }
@@ -375,13 +379,14 @@ class Game {
         this._gpwsT = (this._gpwsT ?? 9) + dt
         if (this._gpwsT > (ttc < 4 ? 0.45 : 0.8)) { // blíž = hustěji
           this._gpwsT = 0
-          this.vario.blip(340, 0.24, 'square', 0.1, 210)
+          this.vario.blip({ freq: 340, dur: 0.24, type: 'square', vol: 0.1, to: 210 })
           if (navigator.vibrate) navigator.vibrate(35)
         }
       } else this._gpwsT = 9
 
       if (this.glider.stalled > 0 && !this._stallBuzz) {
         this._stallBuzz = true
+        this.vario.noise({ dur: 0.45, cutoff: 1100, to: 400, vol: 0.16 }) // třepetání
         if (navigator.vibrate) navigator.vibrate([40, 60, 40])
       } else if (this.glider.stalled <= 0) this._stallBuzz = false
 

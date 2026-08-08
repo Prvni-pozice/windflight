@@ -47,16 +47,16 @@ export class Vario {
     return this.muted
   }
 
-  /** Krátký tón — upozornění, průlet bránou, náraz. Jednorázový oscilátor,
+  /** Krátký tón — upozornění, průlet bránou, cíl. Jednorázový oscilátor,
    *  ať se nemíchá s pípáním varia. */
-  blip(freq = 660, dur = 0.12, type = 'sine', vol = 0.12, slideTo = null) {
+  blip({ freq = 660, dur = 0.12, type = 'sine', vol = 0.12, to = null, delay = 0 } = {}) {
     if (!this.ctx || this.muted) return
-    const t = this.ctx.currentTime
+    const t = this.ctx.currentTime + delay
     const o = this.ctx.createOscillator()
     const g = this.ctx.createGain()
     o.type = type
     o.frequency.setValueAtTime(freq, t)
-    if (slideTo) o.frequency.exponentialRampToValueAtTime(Math.max(20, slideTo), t + dur)
+    if (to) o.frequency.exponentialRampToValueAtTime(Math.max(20, to), t + dur)
     g.gain.setValueAtTime(0.0001, t)
     g.gain.linearRampToValueAtTime(vol, t + 0.012)
     g.gain.exponentialRampToValueAtTime(0.0001, t + dur)
@@ -64,6 +64,47 @@ export class Vario {
     g.connect(this.ctx.destination)
     o.start(t)
     o.stop(t + dur + 0.03)
+  }
+
+  /** Šumový úder — náraz do země, třepetání při přetažení. */
+  noise({ dur = 0.4, cutoff = 300, vol = 0.25, to = null } = {}) {
+    if (!this.ctx || this.muted) return
+    const t = this.ctx.currentTime
+    if (!this._noiseBuf) {
+      const len = Math.floor(this.ctx.sampleRate * 1.0)
+      const buf = this.ctx.createBuffer(1, len, this.ctx.sampleRate)
+      const d = buf.getChannelData(0)
+      for (let i = 0; i < len; i++) d[i] = Math.random() * 2 - 1
+      this._noiseBuf = buf
+    }
+    const src = this.ctx.createBufferSource()
+    src.buffer = this._noiseBuf
+    const f = this.ctx.createBiquadFilter()
+    f.type = 'lowpass'
+    f.frequency.setValueAtTime(cutoff, t)
+    if (to) f.frequency.exponentialRampToValueAtTime(Math.max(40, to), t + dur)
+    const g = this.ctx.createGain()
+    g.gain.setValueAtTime(vol, t)
+    g.gain.exponentialRampToValueAtTime(0.0001, t + dur)
+    src.connect(f); f.connect(g); g.connect(this.ctx.destination)
+    src.start(t)
+    src.stop(t + dur + 0.03)
+  }
+
+  /** Průlet bránou: dvojité cinknutí; v cíli stoupavá trojka. */
+  gateChime(finish = false) {
+    if (finish) {
+      [660, 880, 1320].forEach((f, i) => this.blip({ freq: f, dur: 0.3, type: 'triangle', vol: 0.13, delay: i * 0.16 }))
+    } else {
+      this.blip({ freq: 880, dur: 0.09, type: 'triangle', vol: 0.12 })
+      this.blip({ freq: 1320, dur: 0.14, type: 'triangle', vol: 0.1, delay: 0.08 })
+    }
+  }
+
+  /** Náraz do terénu. */
+  crashSound() {
+    this.noise({ dur: 0.55, cutoff: 900, to: 90, vol: 0.32 })
+    this.blip({ freq: 90, dur: 0.5, type: 'sine', vol: 0.2, to: 45 })
   }
 
   /** Okamžité ticho (pauza, konec letu). */
