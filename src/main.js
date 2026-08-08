@@ -44,7 +44,7 @@ class Game {
         this.vario.init()
         if (this.isTouch) {
           await this.controls.enableTilt() // sám nastaví režim (náklon / dotyk)
-          this.ui.setControlUi(this.controls)
+          this._syncSettings()
         }
         this._startRun()
       },
@@ -83,9 +83,12 @@ class Game {
     addEventListener('keydown', e => { if (e.code === 'KeyC') this._toggleView() })
     this.ui.onInvertToggle = () => {
       const inv = this.controls.toggleInvertY()
-      this.ui.setControlUi(this.controls)
+      this._syncSettings()
       this.ui.toast(inv ? 'Náklon/tah k sobě = nos DOLŮ' : 'Náklon/tah k sobě = nos NAHORU')
     }
+    this.ui.onInvertSet = v => { this.controls.setInvertY(v); this._syncSettings() }
+    this.ui.onSens = v => this.controls.setSens(v)
+    this._syncSettings()
     document.getElementById('mute-btn').textContent = this.vario.muted ? '🔇' : '🔊'
     this._spawn()
 
@@ -223,6 +226,15 @@ class Game {
     this.runMs = 0 // čas letu se sčítá z kroků simulace → pauza se nepočítá
     this.ui.beginRun()
     this.ui.showFlying(this.isTouch)
+  }
+
+  _syncSettings() {
+    this.ui.setControlUi(this.controls)
+    this.ui.syncSettings({
+      sens: this.controls.sens,
+      invertY: this.controls.invertY,
+      isTouch: this.isTouch,
+    })
   }
 
   _toggleView() {

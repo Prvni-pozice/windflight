@@ -93,6 +93,11 @@ export class FlightControls {
       this.tilt.beta = e.beta
       this.tilt.gamma = e.gamma
       this.tiltActive = true
+      // dolní propust proti třesu ruky (~4 vzorky ≈ 70 ms). Bez ní se
+      // kluzák sám kolébal podle toho, jak hráč dýchá.
+      const { b: bRaw, g: gRaw } = this._orientedTilt()
+      this._bF = this._bF == null ? bRaw : this._bF + (bRaw - this._bF) * 0.25
+      this._gF = this._gF == null ? gRaw : this._gF + (gRaw - this._gF) * 0.25
       // kalibrace z PRŮMĚRU prvních vzorků, až data reálně tečou — jediný
       // odečet na časovači po kliku chytal ještě pohyb ruky/permission
       // dialog a na šířku dával špatný neutrál (letadlo pak "samo" zatáčelo)
@@ -151,6 +156,12 @@ export class FlightControls {
   }
 
   toggleInvertY() { return this.setInvertY(!this.invertY) }
+
+  setSens(v) {
+    this.sens = Math.max(0.6, Math.min(1.8, +v || 1))
+    settings.set('tiltSens', this.sens)
+    return this.sens
+  }
 
   /**
    * Volat z user gesta (Start) — iOS vyžaduje requestPermission.
@@ -267,15 +278,16 @@ export class FlightControls {
     // ZKALIBROVANÉMU neutrálu (ne proti nule), stejně přeorientovanému
     // podle displeje jako za běhu (viz _orientedTilt). Dokud kalibrace
     // neproběhla, tilt neřídí (jinak by prvních ~1 s řídil špatný neutrál).
-    if (this.mode === 'tilt' && this.tiltActive && this.tilt.beta != null
+    if (this.mode === 'tilt' && this.tiltActive && this._bF != null
         && this.neutralB != null && this._calRemaining === 0) {
-      const { b, g } = this._orientedTilt()
       // Směr výšky: b roste = telefon se zvedá k sobě (displej blíž ke svislé).
       //  invertY = true  → k sobě = nos DOLŮ (výchozí, ověřeno na telefonu)
       //  invertY = false → k sobě = nos NAHORU (klasika jako u kniplu)
       const dir = this.invertY ? 1 : -1
-      pitch += dir * Math.max(-1, Math.min(1, (b - this.neutralB) / (44 / this.sens)))
-      roll += Math.max(-1, Math.min(1, (g - this.neutralG) / (50 / this.sens)))
+      // mrtvá zóna 1,5° = klid v ruce znamená klid na kniplu
+      const dz = v => Math.sign(v) * Math.max(0, Math.abs(v) - 1.5)
+      pitch += dir * Math.max(-1, Math.min(1, dz(this._bF - this.neutralB) / (44 / this.sens)))
+      roll += Math.max(-1, Math.min(1, dz(this._gF - this.neutralG) / (50 / this.sens)))
     }
 
     pitch = Math.max(-1, Math.min(1, pitch))

@@ -49,8 +49,23 @@ export class UI {
     })
 
     document.getElementById('pause-btn').addEventListener('click', () => onPause && onPause())
-    document.getElementById('pause-resume-btn').addEventListener('click', () => onResume && onResume())
     document.getElementById('pause-restart-btn').addEventListener('click', onRetry)
+    // stejné okno slouží jako pauza i jako nastavení z úvodní obrazovky
+    document.getElementById('pause-resume-btn').addEventListener('click', () => {
+      if (this._settingsMode) { this.hidePause(); this._settingsMode = false; return }
+      if (onResume) onResume()
+    })
+    document.getElementById('settings-link').addEventListener('click', () => this.openSettings())
+
+    this.onSens = null
+    const sens = document.getElementById('tilt-sens')
+    sens.addEventListener('input', () => {
+      document.getElementById('tilt-sens-val').textContent = Math.round(sens.value * 100) + ' %'
+      if (this.onSens) this.onSens(+sens.value)
+    })
+    document.getElementById('invert-chk').addEventListener('change', e => {
+      if (this.onInvertSet) this.onInvertSet(e.target.checked)
+    })
 
     this.onModeToggle = null
     this.onInvertToggle = null
@@ -233,9 +248,32 @@ export class UI {
   }
 
   showPause(info) {
+    this._settingsMode = false
+    document.getElementById('pause-title').textContent = '⏸ Pauza'
     document.getElementById('pause-info').textContent = info || 'Čas letu stojí'
+    document.getElementById('pause-resume-btn').innerHTML = '▶&nbsp; Pokračovat'
+    document.getElementById('pause-restart-btn').style.display = ''
     this.pauseOverlay.classList.remove('hidden')
     this.setCountdown(0)
+  }
+
+  openSettings() {
+    this._settingsMode = true
+    document.getElementById('pause-title').textContent = '⚙ Nastavení'
+    document.getElementById('pause-info').textContent = 'Platí hned a pamatuje se'
+    document.getElementById('pause-resume-btn').textContent = 'Zavřít'
+    document.getElementById('pause-restart-btn').style.display = 'none'
+    this.pauseOverlay.classList.remove('hidden')
+  }
+
+  /** Naplnit ovládací prvky nastavení podle skutečného stavu. */
+  syncSettings({ sens, invertY, isTouch }) {
+    document.getElementById('tilt-sens').value = sens
+    document.getElementById('tilt-sens-val').textContent = Math.round(sens * 100) + ' %'
+    document.getElementById('invert-chk').checked = !!invertY
+    // citlivost náklonu nemá na desktopu co ovlivnit
+    document.getElementById('row-sens').classList.toggle('hidden', !isTouch)
+    document.getElementById('row-invert').classList.toggle('hidden', !isTouch)
   }
 
   hidePause() { this.pauseOverlay.classList.add('hidden') }

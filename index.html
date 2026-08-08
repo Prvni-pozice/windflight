@@ -99,6 +99,21 @@
     #save-status.ok { color: #7dffb0; }
     #save-status.err { color: #ff9c8f; }
 
+    /* panel nastavení (sdílený úvodní obrazovkou i pauzou) */
+    .settings {
+      display: flex; flex-direction: column; gap: 10px; margin: 16px 0 4px;
+      min-width: min(360px, 86vw); font-size: 0.95rem;
+    }
+    .setting-row {
+      display: grid; grid-template-columns: 1fr auto 3.6em; gap: 10px; align-items: center;
+      background: rgba(255, 255, 255, 0.05); border: 1px solid rgba(255, 255, 255, 0.12);
+      border-radius: 12px; padding: 10px 14px; text-align: left;
+    }
+    .setting-row input[type=range] { width: 130px; accent-color: #4aa3e8; }
+    .setting-row input[type=checkbox] { width: 22px; height: 22px; accent-color: #4aa3e8; }
+    .setting-row span { opacity: 0.7; font-variant-numeric: tabular-nums; text-align: right; }
+    .setting-row.hidden { display: none; }
+
     #record-badge {
       display: none; margin: 6px 0 10px; padding: 6px 18px; border-radius: 999px;
       background: rgba(74, 214, 160, 0.18); color: #7dffb0; font-weight: 600;
@@ -284,6 +299,7 @@
     <div class="best-line" id="start-best"></div>
     <div class="board-mini" id="start-top3"></div>
     <button class="link-btn" id="board-link">🏆 Žebříček pilotů →</button>
+    <button class="link-btn" id="settings-link">⚙ Nastavení</button>
   </div>
 
   <div id="win-overlay" class="overlay hidden">
@@ -348,8 +364,20 @@
   <div id="countdown"></div>
 
   <div id="pause-overlay" class="overlay hidden">
-    <h1>⏸ Pauza</h1>
+    <h1 id="pause-title">⏸ Pauza</h1>
     <div class="subtitle" id="pause-info">Čas letu stojí</div>
+    <div class="settings" id="settings-box">
+      <div class="setting-row" id="row-sens">
+        <label for="tilt-sens">Citlivost náklonu</label>
+        <input type="range" id="tilt-sens" min="0.6" max="1.8" step="0.1" value="1" />
+        <span id="tilt-sens-val">100 %</span>
+      </div>
+      <div class="setting-row" id="row-invert">
+        <label for="invert-chk">Náklon/tah k sobě = nos dolů</label>
+        <input type="checkbox" id="invert-chk" />
+        <span></span>
+      </div>
+    </div>
     <button id="pause-resume-btn" style="margin-top:16px;">▶&nbsp; Pokračovat</button>
     <button class="link-btn" id="pause-restart-btn">↻ Letět znovu od startu</button>
   </div>
