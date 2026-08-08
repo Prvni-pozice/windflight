@@ -242,6 +242,9 @@ class Game {
     this.paused = false
     this._resumeT = 0
     this.runMs = 0 // čas letu se sčítá z kroků simulace → pauza se nepočítá
+    this.stats = { maxAlt: 0, maxClimb: 0, maxSpeed: 0, distM: 0, thermals: 0 }
+    this._climbRun = 0
+    this._climbCounted = false
     this.ui.beginRun()
     this.ui.showFlying(this.isTouch, this.runMode)
   }
@@ -270,6 +273,27 @@ class Game {
     this._resumeT = 0
     this.ui.showFlying(this.isTouch, this.runMode)
     this.ui.toast('Pokračuješ od brány — tenhle let se do žebříčku nepočítá', 2600)
+  }
+
+  /** Čísla do výsledkovky — co se z letu dá vyprávět. */
+  _collectStats(dt) {
+    const g = this.glider, s = this.stats
+    if (!s) return
+    s.maxAlt = Math.max(s.maxAlt, g.pos.y)
+    s.maxSpeed = Math.max(s.maxSpeed, g.v * 3.6)
+    s.maxClimb = Math.max(s.maxClimb, this._varioAvg ?? 0)
+    // dráha nad zemí (i s driftem po větru) — to hráč reálně uletěl
+    const vx = Math.sin(g.heading) * g.v + this.cond.windVec.x
+    const vz = -Math.cos(g.heading) * g.v + this.cond.windVec.z
+    s.distM += Math.hypot(vx, vz) * dt
+    // termika se počítá až jako souvislé stoupání přes 6 s (ne každý poryv)
+    if (g.vario > 0.8) {
+      this._climbRun += dt
+      if (this._climbRun > 6 && !this._climbCounted) { s.thermals++; this._climbCounted = true }
+    } else if (g.vario < 0.2) {
+      this._climbRun = 0
+      this._climbCounted = false
+    }
   }
 
   /** 'auto' → podle zařízení; jinak co si hráč vybral. */
@@ -334,7 +358,7 @@ class Game {
   _finish() {
     this.state = 'done'
     this.vario.silence() // fanfáru brány to neutne, jede po vlastních uzlech
-    this.ui.showWin(this.runMs, this.scoring)
+    this.ui.showWin(this.runMs, this.scoring, this.stats)
   }
 
   _crash() {
@@ -420,6 +444,7 @@ class Game {
       } else if (this.glider.stalled <= 0) this._stallBuzz = false
 
       this.runMs += dt * 1000
+      this._collectStats(dt)
       this.ui.updateHud({
         ms: this.runMs,
         speedKmh: this.glider.v * 3.6,

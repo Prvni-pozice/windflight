@@ -86,6 +86,18 @@
     }
     .ath-line:empty { display: none; }
 
+    .stats-grid {
+      display: flex; flex-wrap: wrap; gap: 8px; justify-content: center;
+      margin: 12px 0 4px; max-width: min(560px, 92vw);
+    }
+    .stats-grid .stat {
+      display: flex; flex-direction: column; gap: 2px; min-width: 104px;
+      background: rgba(255, 255, 255, 0.05); border: 1px solid rgba(255, 255, 255, 0.12);
+      border-radius: 12px; padding: 8px 12px;
+    }
+    .stats-grid .stat small { opacity: 0.6; font-size: 0.7rem; }
+    .stats-grid .stat b { font-size: 1.05rem; font-variant-numeric: tabular-nums; }
+
     .save-score { display: flex; gap: 10px; margin: 16px 0 6px; flex-wrap: wrap; justify-content: center; }
     .save-score input {
       font-size: 1.05rem; padding: 12px 16px; border-radius: 12px;
@@ -343,6 +355,7 @@
     <div class="final-time" id="final-time">0:00.0</div>
     <div class="weather-line" id="win-cond"></div>
     <div id="record-badge">🏆 Nový osobní rekord!</div>
+    <div class="stats-grid" id="win-stats"></div>
     <div class="save-score" id="save-score">
       <input id="player-name" maxlength="24" placeholder="Tvoje jméno" autocomplete="nickname" />
       <button id="save-score-btn">Uložit výsledek</button>

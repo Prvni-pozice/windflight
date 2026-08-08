@@ -357,7 +357,30 @@ export class UI {
     this.gateMarker.style.display = 'none'
   }
 
-  showWin(ms, scoring = true) {
+  /** Statistika letu na výsledkovce — z čeho se dá poučit i chlubit. */
+  _renderStats(stats) {
+    const box = document.getElementById('win-stats')
+    box.replaceChildren()
+    if (!stats) return
+    const items = [
+      ['Nejvyšší bod', `${Math.round(stats.maxAlt)} m`],
+      ['Nejlepší stoupák', `${stats.maxClimb > 0 ? '+' : ''}${stats.maxClimb.toFixed(1)} m/s`],
+      ['Nejvyšší rychlost', `${Math.round(stats.maxSpeed)} km/h`],
+      ['Uletěno', `${(stats.distM / 1000).toFixed(1)} km`],
+      ['Vykroužených stoupáků', String(stats.thermals)],
+    ]
+    for (const [label, value] of items) {
+      const cell = document.createElement('div')
+      cell.className = 'stat'
+      const l = document.createElement('small'); l.textContent = label
+      const v = document.createElement('b'); v.textContent = value
+      cell.append(l, v)
+      box.appendChild(cell)
+    }
+  }
+
+  showWin(ms, scoring = true, stats = null) {
+    this._renderStats(stats)
     this.lastMs = scoring ? ms : null
     const prev = this.best
     const rec = scoring && (!prev || ms < prev)
