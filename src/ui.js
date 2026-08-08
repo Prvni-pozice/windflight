@@ -11,11 +11,12 @@ export function formatTime(ms) {
 }
 
 export class UI {
-  constructor({ weatherLabel, gateTotal, onStart, onRetry }) {
+  constructor({ weatherLabel, gateTotal, onStart, onRetry, onPause, onResume }) {
     this.startScreen = document.getElementById('start-screen')
     this.winOverlay = document.getElementById('win-overlay')
     this.crashOverlay = document.getElementById('crash-overlay')
     this.boardOverlay = document.getElementById('board-overlay')
+    this.pauseOverlay = document.getElementById('pause-overlay')
     this.hud = document.getElementById('hud')
     this.gateMarker = document.getElementById('gate-marker')
     this.nameInput = document.getElementById('player-name')
@@ -46,6 +47,10 @@ export class UI {
     muteBtn.addEventListener('click', () => {
       if (this.onMuteToggle) muteBtn.textContent = this.onMuteToggle() ? '🔇' : '🔊'
     })
+
+    document.getElementById('pause-btn').addEventListener('click', () => onPause && onPause())
+    document.getElementById('pause-resume-btn').addEventListener('click', () => onResume && onResume())
+    document.getElementById('pause-restart-btn').addEventListener('click', onRetry)
 
     this.onModeToggle = null
     this.onInvertToggle = null
@@ -215,6 +220,21 @@ export class UI {
     c.restore()
   }
 
+  showPause(info) {
+    document.getElementById('pause-info').textContent = info || 'Čas letu stojí'
+    this.pauseOverlay.classList.remove('hidden')
+    this.setCountdown(0)
+  }
+
+  hidePause() { this.pauseOverlay.classList.add('hidden') }
+
+  /** n>0 = zobraz číslo odpočtu, 0 = schovej. */
+  setCountdown(n) {
+    const el = document.getElementById('countdown')
+    el.classList.toggle('show', n > 0)
+    if (n > 0) el.textContent = String(n)
+  }
+
   /** Krátká zpráva uprostřed nahoře (přepnutí režimu, kamera, pauza…). */
   toast(text, ms = 1900) {
     const el = document.getElementById('toast')
@@ -249,6 +269,8 @@ export class UI {
     this.winOverlay.classList.add('hidden')
     this.crashOverlay.classList.add('hidden')
     this.boardOverlay.classList.add('hidden')
+    this.pauseOverlay.classList.add('hidden')
+    this.setCountdown(0)
     this.hud.classList.add('visible')
     document.getElementById('gate-info').style.display = 'block'
     document.getElementById('vario-gauge').classList.add('visible')
@@ -262,6 +284,8 @@ export class UI {
     document.getElementById('vario-gauge').classList.remove('visible')
     document.getElementById('tilt-hint').style.display = 'none'
     document.getElementById('ctrl-btns').classList.remove('visible')
+    this.pauseOverlay.classList.add('hidden')
+    this.setCountdown(0)
     this.gateMarker.style.display = 'none'
   }
 

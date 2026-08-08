@@ -47,6 +47,14 @@ export class Vario {
     return this.muted
   }
 
+  /** Okamžité ticho (pauza, konec letu). */
+  silence() {
+    if (!this.ctx) return
+    const t = this.ctx.currentTime
+    if (this.gain) this.gain.gain.setTargetAtTime(0, t, 0.02)
+    if (this.windGain) this.windGain.gain.setTargetAtTime(0, t, 0.05)
+  }
+
   /** Šum větru: v = m/s vzdušné rychlosti, buffet = přetažení. */
   updateWind(v, buffet) {
     if (!this.ctx || this.muted || !this.windGain) return

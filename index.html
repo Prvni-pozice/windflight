@@ -236,6 +236,15 @@
       font-weight: 600; max-width: 88vw; text-align: center;
     }
     #toast.show { opacity: 1; }
+
+    /* odpočet po pauze — ať hráč nezačne řídit vteřinu po tom, co se dívá */
+    #countdown {
+      position: fixed; inset: 0; z-index: 13; display: none;
+      align-items: center; justify-content: center; pointer-events: none;
+      font-size: clamp(3.5rem, 16vw, 7rem); font-weight: 800; color: #cfe8ff;
+      text-shadow: 0 4px 30px rgba(8, 20, 32, 0.8);
+    }
+    #countdown.show { display: flex; }
   </style>
 </head>
 <body>
@@ -249,7 +258,7 @@
       <b>Myš/šipky nefungují na výkon — větroň nemá motor.</b> Výšku bereš z přírody:<br>
       🌡 <b>termika</b> — sloupce stoupajícího vzduchu nad osluněnými svahy (hledej víry částic, kroužící ptáky a kumuly nad nimi)<br>
       ⛰ <b>svahové proudění</b> — vítr opřený do svahu zvedá podél návětrných hřebenů<br><br>
-      <b>Desktop:</b> ←→↑↓ šipky, tažení myší (knipl) nebo gamepad · R restart · TAB mapa<br>
+      <b>Desktop:</b> ←→↑↓ šipky, tažení myší (knipl) nebo gamepad · R restart · TAB mapa · ESC pauza<br>
       <b>Mobil:</b> náklon telefonu, nebo <b>✋ knipl prstem</b> — přepneš tlačítkem vpravo dole.
       Tlačítko <b>⇅</b> obrací směr výšky, dvojklep rekalibruje držení telefonu.<br>
       <span class="tip">⚠ Pod ~60 km/h přetažení. V zatáčce klesáš rychleji. Variometr pípá ve stoupání.</span>
@@ -312,10 +321,19 @@
   <div id="stall-warn">⚠ MALÁ RYCHLOST — potlač!</div>
   <div id="tilt-hint">Dvojklepem kdykoli zkalibruješ neutrální držení telefonu</div>
   <div id="ctrl-btns">
+    <button id="pause-btn">⏸</button>
     <button id="mode-btn">📱 Náklon</button>
     <button id="invert-btn">⇅ Obráceně</button>
   </div>
   <div id="toast"></div>
+  <div id="countdown"></div>
+
+  <div id="pause-overlay" class="overlay hidden">
+    <h1>⏸ Pauza</h1>
+    <div class="subtitle" id="pause-info">Čas letu stojí</div>
+    <button id="pause-resume-btn" style="margin-top:16px;">▶&nbsp; Pokračovat</button>
+    <button class="link-btn" id="pause-restart-btn">↻ Letět znovu od startu</button>
+  </div>
   <div id="stick-base" style="display:none; position:fixed; z-index:12; width:110px; height:110px; margin:-55px 0 0 -55px; border-radius:50%; background:rgba(255,255,255,0.07); border:2px solid rgba(255,255,255,0.28); pointer-events:none;">
     <div id="stick-knob" style="position:absolute; left:50%; top:50%; width:48px; height:48px; border-radius:50%; background:rgba(255,255,255,0.35); transform:translate(-50%,-50%);"></div>
   </div>

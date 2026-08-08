@@ -20,7 +20,8 @@ class Game {
     this.terrain = terrain
     this.weather = weather
     this.state = 'menu' // menu | flying | done | crashed
-    this.runStart = 0
+    this.runMs = 0      // čas letu (jen běžící simulace, bez pauz)
+    this.paused = false
 
     this._setupRenderer()
     this._setupScene()
@@ -47,7 +48,23 @@ class Game {
         this._startRun()
       },
       onRetry: () => this._startRun(),
+      onPause: () => this._pause(),
+      onResume: () => this._resume(),
     })
+
+    // pauza: ESC/P, tlačítko ⏸, a hlavně AUTOMATICKY při odchodu z okna
+    // (příchozí hovor / notifikace / přepnutí panelu) — let se jinak
+    // "odehrával" bez hráče a čas běžel dál
+    addEventListener('keydown', e => {
+      if (e.code === 'Escape' || e.code === 'KeyP') {
+        e.preventDefault()
+        this.paused ? this._resume() : this._pause()
+      }
+    })
+    document.addEventListener('visibilitychange', () => {
+      if (document.hidden) this._pause('Hra se sama zastavila, když jsi přepnul jinam')
+    })
+    addEventListener('blur', () => this._pause())
 
     this.isTouch = matchMedia('(pointer: coarse)').matches
     this.ui.buildMinimap(this.terrain, this.gates)
@@ -196,14 +213,30 @@ class Game {
     if (this._inSm) { this._inSm.pitch = 0; this._inSm.roll = 0 }
     this._spawn()
     this.state = 'flying'
-    this.runStart = performance.now()
+    this.paused = false
+    this._resumeT = 0
+    this.runMs = 0 // čas letu se sčítá z kroků simulace → pauza se nepočítá
     this.ui.beginRun()
     this.ui.showFlying(this.isTouch)
   }
 
+  _pause(info) {
+    if (this.state !== 'flying' || this.paused) return
+    this.paused = true
+    this._resumeT = 0
+    this.vario.silence()
+    this.ui.showPause(info)
+  }
+
+  _resume() {
+    if (!this.paused || this._resumeT > 0) return
+    this._resumeT = 3.0 // 3…2…1, ať hráč stihne chytit knipl
+    this.ui.hidePause()
+  }
+
   _finish() {
     this.state = 'done'
-    this.ui.showWin(performance.now() - this.runStart)
+    this.ui.showWin(this.runMs)
   }
 
   _crash() {
@@ -234,7 +267,16 @@ class Game {
       }
     }
 
-    if (this.state === 'flying') {
+    // pauza: svět stojí, běží jen kamera a odpočet návratu do hry
+    if (this.paused) {
+      if (this._resumeT > 0) {
+        this._resumeT -= rawDt
+        this.ui.setCountdown(Math.max(1, Math.ceil(this._resumeT)))
+        if (this._resumeT <= 0) { this.paused = false; this.ui.setCountdown(0) }
+      }
+    }
+
+    if (this.state === 'flying' && !this.paused) {
       const raw = this.controls.getInput()
       if (raw.reset && !this._resetHeld) { this._resetHeld = true; this._startRun(); return }
       if (!raw.reset) this._resetHeld = false
@@ -261,9 +303,9 @@ class Game {
         if (navigator.vibrate) navigator.vibrate([40, 60, 40])
       } else if (this.glider.stalled <= 0) this._stallBuzz = false
 
-      const ms = performance.now() - this.runStart
+      this.runMs += dt * 1000
       this.ui.updateHud({
-        ms,
+        ms: this.runMs,
         speedKmh: this.glider.v * 3.6,
         altM: this.glider.pos.y,
         aglM: this.glider.pos.y - this.terrain.heightAt(this.glider.pos.x, this.glider.pos.z),
@@ -293,10 +335,14 @@ class Game {
       this.vario.updateWind(0, false)
     }
 
-    this.lift.update(dt)
-    this.gates.update(t)
+    // v pauze svět stojí (částice, prstence, vlečky) — jen kamera dojíždí
+    if (!this.paused) {
+      this._worldT = t
+      this.lift.update(dt)
+      this.glider.updateTrails()
+    }
+    this.gates.update(this._worldT ?? t)
     this.glider.updateShadow(this.terrain)
-    this.glider.updateTrails()
     this.forest.update(this.camera.position.x, this.camera.position.z)
     this._updateCamera(dt)
 
