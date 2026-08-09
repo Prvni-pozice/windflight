@@ -79,12 +79,18 @@ export class Forest {
           const z = (gz + rng()) * this.CELL
           const rr = rng(), rs = rng()
           if (x < 200 || z < 200 || x > t.sizeX - 200 || z > t.sizeZ - 200) continue
+          // Kde roste les, říkají data (ESA WorldCover), ne odhad z výšky.
+          // Mýtiny, pastviny i horní hranice lesa jsou pak na svém místě.
+          const klass = t.coverAt(x, z)
+          if (klass && klass !== 10 && klass !== 20) continue
           const h = t.heightAt(x, z)
-          if (h < 720 || h > 2000) continue
+          if (h < 720 || h > 2200) continue
           const { slope } = t.slopeAspect(x, z)
           if (slope > 0.55) continue
-          const density = h > 1800 ? (2000 - h) / 200 : 1
-          if (rr > density) continue
+          if (!klass) { // bez dat aspoň starý odhad, ať mapa nezůstane holá
+            const density = h > 1800 ? (2000 - h) / 200 : 1
+            if (rr > density) continue
+          } else if (klass === 20 && rr > 0.35) continue // křoviny jsou řídké
           if (this.towns.some(tw => Math.hypot(tw.x - x, tw.z - z) < tw.r)) continue
           const s = 0.7 + rs * 0.7
           q.setFromAxisAngle(up, rr * Math.PI * 2)
@@ -158,12 +164,16 @@ function buildFarLayer(scene, terrain, towns, COUNT) {
   while (i < COUNT && guard++ < COUNT * 12) {
     const x = 400 + rng() * (terrain.sizeX - 800)
     const z = 400 + rng() * (terrain.sizeZ - 800)
+    const klass = terrain.coverAt(x, z) // i dálková vrstva ctí skutečný les
+    if (klass && klass !== 10 && klass !== 20) continue
     const h = terrain.heightAt(x, z)
-    if (h < 720 || h > 2000) continue
+    if (h < 720 || h > 2200) continue
     const { slope } = terrain.slopeAspect(x, z)
     if (slope > 0.55) continue
-    const density = h > 1800 ? (2000 - h) / 200 : 1
-    if (rng() > density) continue
+    if (!klass) {
+      const density = h > 1800 ? (2000 - h) / 200 : 1
+      if (rng() > density) continue
+    } else if (klass === 20 && rng() > 0.35) continue
     if (towns.some(t => Math.hypot(t.x - x, t.z - z) < t.r)) continue
     const s = 1.2 + rng() * 0.9 // větší — čitelné i z dálky
     q.setFromAxisAngle(up, rng() * Math.PI)

@@ -95,7 +95,7 @@ export class Gates {
     if (g) {
       const s = 1 + Math.sin(t * 3.5) * 0.04
       g.mesh.scale.set(s, s, s)
-      this.beam.material.opacity = 0.08 + Math.sin(t * 2.2) * 0.035
+      this.beam.material.opacity = 0.055 + Math.sin(t * 2.2) * 0.03
     }
   }
 }

@@ -55,12 +55,27 @@ zatáčení náklonem (opadání roste), přetažení pod ~60 km/h, snos větrem
 - **Daleký horizont**: skutečné Alpy do ~120 km, viz `src/far-terrain.js`.
 - **Kumuly** mají plochou základnu a květákový vršek, vlastní shader
   (vršek svítí, základna šedomodrá) místo průsvitného Lambertu.
+- **Vržené stíny** hřebenů podle skutečné polohy slunce (paprsek nad
+  heightmapou, zapečený do atributu vrcholu) + **stíny kumulů** promítnuté
+  pod slunečním úhlem. Násobí se jen do přímého světla, takže stín zůstává
+  modrý a prokreslený. Stíny mraků zároveň prozrazují, kde je termika.
+- **Post-processing** (jen vysoká kvalita): záře, barevné doladění, FXAA.
+  Pořadí průchodů je zásadní — `OutputPass` za září a před doladěním.
+  Vlastní shadery (obloha, mraky) musí projít stejným tónovým mapováním
+  jako zbytek scény, jinak s efekty vyblednou.
+- **Skutečné pokrytí** (ESA WorldCover 10 m): les roste tam, kde roste,
+  ledovce jsou ledovce, Arve je v údolí vidět. Řídí barvu terénu i to,
+  kam se sázejí stromy.
 - Ladění denní doby bez čekání: `?cas=8:00` (UTC) v URL.
 
 ## Stack a data
 - Vite + Three.js, WebAudio (vario + šum větru). Port dev serveru **5185**.
 - Terén: `scripts/fetch_terrain.mjs` (Copernicus GLO-30 z AWS Open Data →
   `public/terrain/chamonix.bin`, Uint16 metry, 640×576).
+- Pokrytí: `scripts/fetch_landcover.mjs` (ESA WorldCover 10 m 2021 →
+  `public/terrain/chamonix-cover.bin`, Uint8 třídy na mřížce terénu, 360 kB;
+  zmenšuje se většinovým hlasováním, ne průměrem — průměr čísel tříd nedává
+  smysl). Chamonix: 35 % tráva, 34 % les, 14 % trvalý sníh a led, 12 % skála.
 - Horizont: `scripts/fetch_far_terrain.mjs` (Copernicus GLO-90, 12 dlaždic →
   `public/terrain/alps-far.bin`, 384×352, ≈650 m/buňku, 264 kB). Používá
   stejný přepočet stupňů na metry jako blízká mapa, takže na ni navazuje;

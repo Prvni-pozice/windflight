@@ -6,14 +6,18 @@ import * as THREE from 'three'
 export class Terrain {
   /** Načte public/terrain/chamonix.{bin,json} a postaví mesh. */
   static async load() {
-    const [meta, buf] = await Promise.all([
+    const [meta, buf, cover] = await Promise.all([
       fetch('/terrain/chamonix.json').then(r => r.json()),
       fetch('/terrain/chamonix.bin').then(r => r.arrayBuffer()),
+      // pokrytí je nepovinné — bez něj se barví jen podle výšky a sklonu
+      fetch('/terrain/chamonix-cover.bin')
+        .then(r => (r.ok ? r.arrayBuffer() : null)).catch(() => null),
     ])
-    return new Terrain(meta, new Uint16Array(buf))
+    return new Terrain(meta, new Uint16Array(buf), cover && new Uint8Array(cover))
   }
 
-  constructor(meta, heights) {
+  constructor(meta, heights, cover = null) {
+    this.cover = cover
     this.meta = meta
     this.gw = meta.gw
     this.gh = meta.gh
@@ -28,6 +32,15 @@ export class Terrain {
   addTo(scene, { withSkirt = true } = {}) {
     scene.add(this.mesh)
     if (withSkirt) scene.add(this.skirt)
+  }
+
+  /** Třída pokrytí v daném místě (10 les, 30 tráva, 60 skála, 70 led, 80 voda…).
+   *  Bez načtených dat vrací 0. */
+  coverAt(x, z) {
+    if (!this.cover) return 0
+    const gx = Math.round(Math.min(this.gw - 1, Math.max(0, x / this.sizeX * (this.gw - 1))))
+    const gz = Math.round(Math.min(this.gh - 1, Math.max(0, z / this.sizeZ * (this.gh - 1))))
+    return this.cover[gz * this.gw + gx]
   }
 
   /** Výška terénu v metrech (bilineárně), mimo mapu drží okraj. */
@@ -220,6 +233,8 @@ export class Terrain {
     const forest = new THREE.Color(0x3e4c39)
     const alpine = new THREE.Color(0x8a9463)  // hole nad lesem, spíš do žluta
     const valley = new THREE.Color(0x7f8a63)
+    const water = new THREE.Color(0x4a6b82)
+    const town = new THREE.Color(0x8e877e)
 
     for (let gz = 0; gz < gh; gz++) {
       for (let gx = 0; gx < gw; gx++) {
@@ -253,6 +268,43 @@ export class Terrain {
         const treeLine = 1900 + n01 * 160 + n02 * 60 + south * 120
 
         let snowy = 0
+        // ── skutečné pokrytí (ESA WorldCover) má přednost před odhadem ──
+        const klass = this.cover ? this.cover[i] : 0
+        if (klass) {
+          if (klass === 70) {          // trvalý sníh a led = ledovce
+            c.copy(slope < 0.3 ? glacier : snow)
+            snowy = 1
+          } else if (klass === 80) {   // voda
+            c.copy(water)
+          } else if (klass === 50) {   // zástavba
+            c.copy(town)
+          } else if (klass === 10) {   // les — s výškou tmavne
+            c.copy(forest).lerp(valley, Math.max(0, 1 - (h - 700) / 900) * 0.45)
+          } else if (klass === 60) {   // holá půda a skála
+            c.copy(scree).lerp(rock, Math.min(1, slope * 1.4))
+          } else if (klass === 100 || klass === 20) { // mech, křoviny nad lesem
+            c.copy(alpine).lerp(scree, 0.35)
+          } else {                     // tráva a pole
+            c.copy(h > treeLine ? alpine : valley)
+          }
+          // Skála přebíjí všechno na stěnách: v 10m datech je na srázech
+          // šum a travnatý flek uprostřed severní stěny vypadá divně.
+          if (slope > 0.55 && klass !== 70) c.lerp(rockDark, Math.min(1, (slope - 0.55) * 2))
+          // sezónní poprašek nad ~3200 m tam, kde nejsou trvalé ledovce
+          if (h > 3200 && klass !== 70 && slope < 0.6) {
+            const t = Math.min(0.85, (h - 3200) / 500)
+            c.lerp(snow, t)
+            snowy = Math.max(snowy, t)
+          }
+          c.offsetHSL((n02 - 0.5) * 0.02, (n01 - 0.5) * 0.05, (n02 - 0.5) * 0.05)
+          const aoK = this._aoAt(ao, gx, gz)
+          const fK = (0.68 + 0.32 * aoK) * (1 - snowy) + (0.93 + 0.07 * aoK) * snowy
+          colors[i * 3] = c.r * fK
+          colors[i * 3 + 1] = c.g * fK
+          colors[i * 3 + 2] = c.b * fK
+          continue
+        }
+
         if (h > snowLine) {
           c.copy(snow)
           snowy = 1
