@@ -14,6 +14,7 @@ import { UI } from './ui.js'
 import { buildScenery } from './scenery.js'
 import { Forest } from './trees.js'
 import * as settings from './settings.js'
+import { PostFX } from './postfx.js'
 
 const START = { lat: 45.9290, lon: 6.8560, alt: 2600, headingDeg: 20 } // nad Chamonix, čelem k Bréventu
 
@@ -190,7 +191,13 @@ class Game {
           col += sunTint * (pow(s, 800.0) * 1.4 + pow(s, 32.0) * (0.18 + uGolden * 0.25));
           // pod obzorem plynule do oparu, ať tam není ostrá hrana
           col = mix(col, uHorizon, smoothstep(0.03, -0.08, vDir.y));
-          gl_FragColor = vec4(col, 1.0);
+          // Barvy nahoře jsou psané "jak to má vypadat na displeji", takže
+          // je tu převedeme do lineárního prostoru a necháme projít stejným
+          // tónovým mapováním jako zbytek scény. Bez toho vypadá obloha bez
+          // efektů jinak než s nimi (post-processing ji převáděl podruhé).
+          gl_FragColor = vec4(pow(col, vec3(2.2)) * 1.35, 1.0);
+          #include <tonemapping_fragment>
+          #include <colorspace_fragment>
         }`,
     })
     this.sky = new THREE.Mesh(new THREE.SphereGeometry(70000, 32, 16), skyMat)
@@ -213,6 +220,9 @@ class Game {
     this.gates = new Gates(this.scene, this.terrain)
     const route = [this.startPoint()].concat(this.gates.list.map(g => ({ x: g.x, z: g.z })))
     this.lift = new LiftField(this.scene, this.terrain, this.cond, this.sunDir, route)
+
+    // stíny až tady: potřebují znát slunce (terén se staví dřív) i mraky
+    this.terrain.applyShadows(this.sunDir, this.lift.cloudShadowTexture(this.sunDir, this.terrain))
   }
 
   startPoint() {
@@ -309,6 +319,14 @@ class Game {
     if (this.forest) this.forest.dispose()
     this.forest = new Forest(this.scene, this.terrain, q)
     this.forest.update(this.camera.position.x, this.camera.position.z)
+
+    // obrazové efekty stojí několik celoobrazovkových průchodů — jen "vysoká"
+    if (q === 'high' && !this.postfx) {
+      this.postfx = new PostFX(this.renderer, this.scene, this.camera)
+    } else if (q !== 'high' && this.postfx) {
+      this.postfx.dispose()
+      this.postfx = null
+    }
   }
 
   _syncSettings() {
@@ -379,12 +397,12 @@ class Game {
     this._qT = (this._qT ?? 0) + rawDt
     if (this._qT > 2) {
       this._qT = 0
-      if (this._fps < 45 && this._pr > 1) {
-        this._pr = Math.max(1, this._pr - 0.25)
+      const prBefore = this._pr
+      if (this._fps < 45 && this._pr > 1) this._pr = Math.max(1, this._pr - 0.25)
+      else if (this._fps > 57 && this._pr < this._prMax) this._pr = Math.min(this._prMax, this._pr + 0.25)
+      if (this._pr !== prBefore) {
         this.renderer.setPixelRatio(this._pr)
-      } else if (this._fps > 57 && this._pr < this._prMax) {
-        this._pr = Math.min(this._prMax, this._pr + 0.25)
-        this.renderer.setPixelRatio(this._pr)
+        if (this.postfx) this.postfx.setSize(innerWidth, innerHeight)
       }
     }
 
@@ -489,7 +507,8 @@ class Game {
       this.camera.updateProjectionMatrix()
     }
     this.sky.position.copy(this.camera.position)
-    this.renderer.render(this.scene, this.camera)
+    if (this.postfx) this.postfx.render()
+    else this.renderer.render(this.scene, this.camera)
   }
 
   _updateCamera(dt) {
@@ -625,6 +644,7 @@ class Game {
     this.camera.aspect = innerWidth / innerHeight
     this.camera.updateProjectionMatrix()
     this.renderer.setSize(innerWidth, innerHeight)
+    if (this.postfx) this.postfx.setSize(innerWidth, innerHeight)
   }
 }
 

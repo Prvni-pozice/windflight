@@ -108,6 +108,98 @@ export class Terrain {
       ao[i + w] * (1 - tx) * tz + ao[i + w + 1] * tx * tz
   }
 
+  /**
+   * Vržené stíny hor pro DANOU polohu slunce. Z každého bodu se vystřelí
+   * paprsek ke slunci a hledá se, jestli mu v cestě nestojí hřeben. Ráno
+   * a večer tak leží půl údolí ve stínu Aiguilles — teprve tím dostane
+   * krajina měřítko a dramatičnost.
+   *
+   * Krok roste geometricky (blízko jemně, daleko hrubě), takže 25 km stačí
+   * projít ~27 vzorky. Počítá se na řidší mřížce a interpoluje — rozmazaná
+   * hrana stínu tu nevadí, polostín tak akorát vypadá.
+   */
+  _bakeSunShadow(sunDir, step = 3) {
+    const aw = Math.ceil(this.gw / step), ah = Math.ceil(this.gh / step)
+    const out = new Float32Array(aw * ah)
+    const sx = sunDir.x, sy = Math.max(0.02, sunDir.y), sz = sunDir.z
+    for (let az = 0; az < ah; az++) {
+      for (let ax = 0; ax < aw; ax++) {
+        const gx = Math.min(this.gw - 1, ax * step), gz = Math.min(this.gh - 1, az * step)
+        const wx = gx / (this.gw - 1) * this.sizeX
+        const wz = gz / (this.gh - 1) * this.sizeZ
+        const h0 = this.heights[gz * this.gw + gx] + 3
+        let worst = 0
+        for (let d = 70; d < 25000; d *= 1.25) {
+          const ray = h0 + sy * d
+          if (ray > this.meta.hmax) break // nad nejvyšším vrcholem už nic nestíní
+          const hx = this.heightAt(wx + sx * d, wz + sz * d)
+          const excess = (hx - ray) / d
+          if (excess > worst) worst = excess
+        }
+        // měkký přechod: hrana stínu není nikdy ostrá jako nůž
+        const t = Math.min(1, Math.max(0, worst / 0.02))
+        out[az * aw + ax] = 1 - t * t * (3 - 2 * t)
+      }
+    }
+    this._shW = aw; this._shH = ah; this._shStep = step
+    return out
+  }
+
+  /** Hodnota z řidší mřížky (bilineárně) — společné pro okluzi i stíny. */
+  _sampleCoarse(arr, w, h, step, gx, gz) {
+    const fx = Math.min(w - 1.001, gx / step)
+    const fz = Math.min(h - 1.001, gz / step)
+    const x0 = fx | 0, z0 = fz | 0, tx = fx - x0, tz = fz - z0
+    const i = z0 * w + x0
+    return arr[i] * (1 - tx) * (1 - tz) + arr[i + 1] * tx * (1 - tz) +
+      arr[i + w] * (1 - tx) * tz + arr[i + w + 1] * tx * tz
+  }
+
+  /**
+   * Nasadit stíny: vržené stíny hřebenů jako atribut vrcholu a stíny mraků
+   * jako textura promítnutá shora. Obojí se v shaderu násobí JEN do přímého
+   * světla slunce — rozptýlené světlo oblohy ve stínu zůstává, takže stíny
+   * jsou modré a prokreslené, ne černé díry.
+   */
+  applyShadows(sunDir, cloudTex) {
+    const lit = this._bakeSunShadow(sunDir)
+    for (const ch of this._chunks) {
+      const arr = new Float32Array(ch.w * ch.h)
+      let vi = 0
+      for (let gz = ch.z0; gz <= ch.z1; gz++) {
+        for (let gx = ch.x0; gx <= ch.x1; gx++) {
+          arr[vi++] = this._sampleCoarse(lit, this._shW, this._shH, this._shStep, gx, gz)
+        }
+      }
+      ch.mesh.geometry.setAttribute('aShadow', new THREE.BufferAttribute(arr, 1))
+    }
+
+    const mat = this._mat
+    mat.onBeforeCompile = shader => {
+      shader.uniforms.uCloudTex = { value: cloudTex }
+      shader.uniforms.uCloudRect = { value: new THREE.Vector4(0, 0, this.sizeX, this.sizeZ) }
+      shader.vertexShader = shader.vertexShader
+        .replace('#include <common>', `#include <common>
+          attribute float aShadow;
+          varying float vShadow;
+          varying vec2 vWXZ;`)
+        .replace('#include <begin_vertex>', `#include <begin_vertex>
+          vShadow = aShadow;
+          vWXZ = position.xz;`) // terén je přímo ve světových metrech
+      shader.fragmentShader = shader.fragmentShader
+        .replace('#include <common>', `#include <common>
+          varying float vShadow;
+          varying vec2 vWXZ;
+          uniform sampler2D uCloudTex;
+          uniform vec4 uCloudRect;`)
+        .replace('#include <lights_fragment_end>', `#include <lights_fragment_end>
+          vec2 cuv = (vWXZ - uCloudRect.xy) / uCloudRect.zw;
+          float cloud = texture2D(uCloudTex, cuv).r;
+          reflectedLight.directDiffuse *= vShadow * (1.0 - 0.6 * cloud);`)
+    }
+    mat.needsUpdate = true
+  }
+
   _buildMesh() {
     const { gw, gh } = this
     const cell = this.sizeX / (gw - 1)
@@ -125,9 +217,9 @@ export class Terrain {
     const scree = new THREE.Color(0x9a9184)   // suť pod stěnami
     const snow = new THREE.Color(0xf2f6fb)
     const glacier = new THREE.Color(0xd6e6f0)
-    const forest = new THREE.Color(0x36512f)
+    const forest = new THREE.Color(0x3e4c39)
     const alpine = new THREE.Color(0x8a9463)  // hole nad lesem, spíš do žluta
-    const valley = new THREE.Color(0x7d9155)
+    const valley = new THREE.Color(0x7f8a63)
 
     for (let gz = 0; gz < gh; gz++) {
       for (let gx = 0; gx < gw; gx++) {
@@ -193,7 +285,9 @@ export class Terrain {
         // sám mezi sebou, takže stíny ve sněhu nejsou černé, ale modré.
         // Bez téhle výjimky měl masiv v žlabech špinavé černé díry.
         const aoV = this._aoAt(ao, gx, gz)
-        const f = (0.55 + 0.45 * aoV) * (1 - snowy) + (0.93 + 0.07 * aoV) * snowy
+        // okluze smí tmavit mírněji, než když byla jediným zdrojem hloubky —
+        // reliéf teď kreslí hlavně vržené stíny slunce (viz applyShadows)
+        const f = (0.68 + 0.32 * aoV) * (1 - snowy) + (0.93 + 0.07 * aoV) * snowy
         const blue = (1 - aoV) * snowy * 0.35 // modrý nádech sněhových stínů
         colors[i * 3] = c.r * f * (1 - blue * 0.09)
         colors[i * 3 + 1] = c.g * f * (1 - blue * 0.04)
@@ -232,10 +326,12 @@ export class Terrain {
     detail.repeat.set(this.sizeX / 190, this.sizeZ / 190)
     detail.anisotropy = 4
     const mat = new THREE.MeshLambertMaterial({ vertexColors: true, map: detail })
+    this._mat = mat // applyShadows() do něj později vpíchne stínový kód
 
     // 3) mřížka rozřezaná na 4×4 dlaždice → frustum culling (kreslí se jen
     //    to, co je ve výhledu; jeden 735k mesh se kreslil vždy celý)
     this.mesh = new THREE.Group()
+    this._chunks = []
     const CH = 4
     const xCuts = [], zCuts = []
     for (let k = 0; k <= CH; k++) {
@@ -282,7 +378,9 @@ export class Terrain {
         geo.setAttribute('color', new THREE.BufferAttribute(col, 3))
         geo.setAttribute('uv', new THREE.BufferAttribute(uv, 2))
         geo.setIndex(idx)
-        this.mesh.add(new THREE.Mesh(geo, mat))
+        const mesh = new THREE.Mesh(geo, mat)
+        this.mesh.add(mesh)
+        this._chunks.push({ mesh, x0, x1, z0, z1, w, h: hgt })
       }
     }
 

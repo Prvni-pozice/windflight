@@ -40,12 +40,56 @@ function cumulusMaterial(sunDir) {
         vec3 col = mix(base, top, smoothstep(0.15, 0.92, up));
         float sun = max(dot(n, normalize(uSun)), 0.0);
         col += vec3(0.10, 0.08, 0.05) * pow(sun, 3.0); // přisvícení od slunce
-        gl_FragColor = vec4(col, 1.0);
+        // do lineárního prostoru a přes stejné tónové mapování jako scéna
+        // (viz stejná poznámka u oblohy v main.js)
+        gl_FragColor = vec4(pow(col, vec3(2.2)) * 1.5, 1.0);
+        #include <tonemapping_fragment>
+        #include <colorspace_fragment>
       }`,
   })
 }
 
 export class LiftField {
+  /**
+   * Mapa stínů kumulů promítnutá na terén. Stín NENÍ pod mrakem — leží tam,
+   * kam ho slunce odhodí, tedy o (výška mraku / tangens výšky slunce) dál.
+   * Ráno to bývají kilometry.
+   *
+   * Herně to není jen ozdoba: kumulus stojí nad termikou, takže tmavé fleky
+   * v krajině hráči prozradí, kde hledat stoupák.
+   *
+   * Vrací THREE.Texture, kde červený kanál = kolik stínu (0 = plné slunce).
+   */
+  cloudShadowTexture(sunDir, terrain, size = 512) {
+    const c = document.createElement('canvas')
+    c.width = c.height = size
+    const ctx = c.getContext('2d')
+    ctx.fillStyle = '#000'
+    ctx.fillRect(0, 0, size, size)
+    const sy = Math.max(0.08, sunDir.y)
+    for (const cl of this.clouds) {
+      const ground = terrain.heightAt(cl.position.x, cl.position.z)
+      const t = (cl.position.y - ground) / sy // délka paprsku k zemi
+      const x = cl.position.x - sunDir.x * t
+      const z = cl.position.z - sunDir.z * t
+      const u = x / terrain.sizeX * size
+      const v = z / terrain.sizeZ * size
+      // poloměr stínu zhruba jako mrak; nízké slunce ho protahuje, ale
+      // kruh je pro tenhle účel dost dobrý
+      const r = 420 / terrain.sizeX * size
+      const g = ctx.createRadialGradient(u, v, r * 0.25, u, v, r)
+      g.addColorStop(0, 'rgba(255,255,255,0.95)')
+      g.addColorStop(1, 'rgba(255,255,255,0)')
+      ctx.fillStyle = g
+      ctx.beginPath()
+      ctx.arc(u, v, r, 0, Math.PI * 2)
+      ctx.fill()
+    }
+    const tex = new THREE.CanvasTexture(c)
+    tex.wrapS = tex.wrapT = THREE.ClampToEdgeWrapping
+    return tex
+  }
+
   /** routePoints: [{x,z}] — trať; podél ní jsou zaručené „domovské" termiky. */
   constructor(scene, terrain, cond, sunDir, routePoints = [], seed = 20260801) {
     this.terrain = terrain
