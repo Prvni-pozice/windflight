@@ -506,6 +506,13 @@ class Game {
       this.lift.update(dt)
       this.atmo.update(dt)
       this.glider.updateTrails()
+      // stíny mraků plují s mraky — přepéct občas (drift za 4 s je pod
+      // desetinou poloměru stínu, takže skok není vidět)
+      this._cloudShT = (this._cloudShT ?? 0) + dt
+      if (this._cloudShT > 4) {
+        this._cloudShT = 0
+        this.terrain.updateCloudShadows(this.lift.cloudShadowTexture(this.sunDir, this.terrain))
+      }
     }
     this.gates.update(this._worldT ?? t)
     this.glider.updateShadow(this.terrain)

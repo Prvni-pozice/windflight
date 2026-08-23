@@ -77,6 +77,16 @@ zatáčení náklonem (opadání roste), přetažení pod ~60 km/h, snos větrem
   - **sluneční glare** s ručním zákrytem terénem (za hřebenem zhasne).
 - **Stříbrné lemování mraků**: přes mrak proti slunci prosvítá obrys
   (rim + protisvětlo ve shaderu mraku, bloom si ho rozzáří).
+- **Pohyblivé stíny mraků**: mapa stínů kumulů se každé ~4 s přepéká,
+  takže stíny plují krajinou s mraky (drift mezi snímky je pod desetinou
+  poloměru stínu — skok není vidět).
+- **Třpyt vody**: sluneční odlesk na Arve a jezerech (třída voda
+  z WorldCoveru, spec ve vlastní větvi Lambert shaderu terénu).
+- **Lens flare duchové**: barevné kotoučky na ose slunce—střed obrazu,
+  svázané s glarem (za hřebenem zhasnou).
+- **Duha**: když prší a slunce je pod ~40°, na protisluneční straně
+  (42° kruh, hory ji zakrývají). Normální průhlednost, ne additive —
+  na syté modré obloze aditivní míchání červenou nevyrobí.
 - Ladění bez čekání na počasí (URL): `?cas=8:00` (UTC),
   `?mraky=70&cirry=80&dest=2&vitr=9&inverze=0.9`, `?debug` → `window.__wf`.
 

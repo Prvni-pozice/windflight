@@ -178,39 +178,66 @@ export class Terrain {
     const lit = this._bakeSunShadow(sunDir)
     for (const ch of this._chunks) {
       const arr = new Float32Array(ch.w * ch.h)
+      const wat = new Float32Array(ch.w * ch.h)
       let vi = 0
       for (let gz = ch.z0; gz <= ch.z1; gz++) {
         for (let gx = ch.x0; gx <= ch.x1; gx++) {
-          arr[vi++] = this._sampleCoarse(lit, this._shW, this._shH, this._shStep, gx, gz)
+          arr[vi] = this._sampleCoarse(lit, this._shW, this._shH, this._shStep, gx, gz)
+          wat[vi] = (this.cover && this.cover[gz * this.gw + gx] === 80) ? 1 : 0
+          vi++
         }
       }
       ch.mesh.geometry.setAttribute('aShadow', new THREE.BufferAttribute(arr, 1))
+      ch.mesh.geometry.setAttribute('aWater', new THREE.BufferAttribute(wat, 1))
     }
 
     const mat = this._mat
     mat.onBeforeCompile = shader => {
       shader.uniforms.uCloudTex = { value: cloudTex }
       shader.uniforms.uCloudRect = { value: new THREE.Vector4(0, 0, this.sizeX, this.sizeZ) }
+      shader.uniforms.uSunDir = { value: sunDir.clone() }
+      this._terrainShader = shader // kvůli výměně stínů mraků za letu
       shader.vertexShader = shader.vertexShader
         .replace('#include <common>', `#include <common>
           attribute float aShadow;
+          attribute float aWater;
           varying float vShadow;
+          varying float vWater;
           varying vec2 vWXZ;`)
         .replace('#include <begin_vertex>', `#include <begin_vertex>
           vShadow = aShadow;
+          vWater = aWater;
           vWXZ = position.xz;`) // terén je přímo ve světových metrech
       shader.fragmentShader = shader.fragmentShader
         .replace('#include <common>', `#include <common>
           varying float vShadow;
+          varying float vWater;
           varying vec2 vWXZ;
           uniform sampler2D uCloudTex;
-          uniform vec4 uCloudRect;`)
+          uniform vec4 uCloudRect;
+          uniform vec3 uSunDir;`)
         .replace('#include <lights_fragment_end>', `#include <lights_fragment_end>
           vec2 cuv = (vWXZ - uCloudRect.xy) / uCloudRect.zw;
           float cloud = texture2D(uCloudTex, cuv).r;
-          reflectedLight.directDiffuse *= vShadow * (1.0 - 0.6 * cloud);`)
+          float lit = vShadow * (1.0 - 0.6 * cloud);
+          reflectedLight.directDiffuse *= lit;
+          // Třpyt vody: sluneční odlesk jen na vodních plochách (aWater).
+          // Lambert specular nesčítá, proto jde odlesk do directDiffuse.
+          // Normála i pohled jsou ve view space → slunce převést tamtéž.
+          vec3 sunV = normalize((viewMatrix * vec4(uSunDir, 0.0)).xyz);
+          float spec = pow(max(dot(reflect(-sunV, normal), geometryViewDir), 0.0), 80.0);
+          reflectedLight.directDiffuse += vWater * spec * vec3(1.0, 0.98, 0.9) * 2.4 * lit;`)
     }
     mat.needsUpdate = true
+  }
+
+  /** Vyměnit mapu stínů mraků — mraky driftují, stíny musí plout s nimi. */
+  updateCloudShadows(tex) {
+    const sh = this._terrainShader
+    if (!sh) { tex.dispose(); return } // materiál ještě není zkompilovaný
+    const old = sh.uniforms.uCloudTex.value
+    sh.uniforms.uCloudTex.value = tex
+    if (old) old.dispose()
   }
 
   _buildMesh() {

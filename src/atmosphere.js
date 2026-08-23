@@ -75,6 +75,7 @@ export class Atmosphere {
     this._buildRain(rng)
     this._buildSnowBanners(rng)
     this._buildGlare()
+    this._buildRainbow()
     scene.add(this.group)
   }
 
@@ -427,6 +428,81 @@ export class Atmosphere {
     this.glare.scale.set(9000, 9000, 1)
     this.glare.renderOrder = 20
     this.scene.add(this.glare)
+
+    // duchové odlesky objektivu: barevné kotoučky na ose slunce—střed obrazu
+    const gc = document.createElement('canvas')
+    gc.width = gc.height = 64
+    const gctx = gc.getContext('2d')
+    // plochý disk s měkkým okrajem — rozmlžený gradient se v obloze ztrácel
+    const gg = gctx.createRadialGradient(32, 32, 2, 32, 32, 30)
+    gg.addColorStop(0, 'rgba(255,255,255,0.5)')
+    gg.addColorStop(0.72, 'rgba(255,255,255,0.42)')
+    gg.addColorStop(1, 'rgba(255,255,255,0)')
+    gctx.fillStyle = gg
+    gctx.fillRect(0, 0, 64, 64)
+    const gtex = new THREE.CanvasTexture(gc)
+    this.ghosts = [
+      { f: 0.45, s: 1000, color: 0x59c9ad },
+      { f: -0.28, s: 700, color: 0xffb35c },
+      { f: -0.7, s: 1800, color: 0x9f7bff },
+    ].map(({ f, s, color }) => {
+      const m = new THREE.SpriteMaterial({
+        map: gtex, blending: THREE.AdditiveBlending, transparent: true,
+        depthTest: false, depthWrite: false, opacity: 0, color,
+      })
+      const spr = new THREE.Sprite(m)
+      spr.scale.set(s, s, 1)
+      spr.renderOrder = 21
+      this.scene.add(spr)
+      return { f, spr }
+    })
+  }
+
+  // ── duha: když prší a slunce je dost nízko, na protisluneční straně ──
+  _buildRainbow() {
+    this.rainbow = null
+    if ((this.weather.precip ?? 0) < 0.05) return
+    const elev = Math.max(0, this.sun.elevDeg)
+    const vis = Math.max(0, Math.min(1, (40 - elev) / 12)) // nad 40° se duha nevejde nad obzor
+    if (vis <= 0) return
+    const c = document.createElement('canvas')
+    c.width = c.height = 512
+    const ctx = c.getContext('2d')
+    // per-pixel, ne tahy štětcem: překrývající se oblouky sčítaly alfu
+    // a z duhy byl bílý pruh. Pás fialová uvnitř (r 216) → červená vně (r 246).
+    const img = ctx.createImageData(512, 512)
+    for (let y = 0; y < 512; y++) {
+      for (let x = 0; x < 512; x++) {
+        const r = Math.hypot(x - 256, y - 256)
+        if (r < 216 || r > 246) continue
+        const t = (r - 216) / 30
+        const col = new THREE.Color().setHSL((270 * (1 - t)) / 360, 0.95, 0.55)
+        const i = (y * 512 + x) * 4
+        img.data[i] = col.r * 255
+        img.data[i + 1] = col.g * 255
+        img.data[i + 2] = col.b * 255
+        img.data[i + 3] = 235 * Math.sin(Math.PI * Math.pow(t, 0.72)) // vrchol k červené
+      }
+    }
+    ctx.putImageData(img, 0, 0)
+    const tex = new THREE.CanvasTexture(c)
+    // plátno je sRGB — bez anotace by se barvy vyplavily do pastelu
+    tex.colorSpace = THREE.SRGBColorSpace
+    // Normální průhlednost, NE additive: na syté modré obloze aditivní
+    // sčítání červenou nikdy nevyrobí (jen přisvětlí do bílo-modra).
+    const mat = new THREE.SpriteMaterial({
+      map: tex, transparent: true,
+      // depthTest ANO: hory duhu zakrývají, takže z ní kouká jen oblouk
+      // nad hřebeny — přesně jak to v údolí vypadá
+      depthTest: true, depthWrite: false, opacity: 0.6 * vis,
+    })
+    this.rainbow = new THREE.Sprite(mat)
+    // kruh 42° kolem protislunečního bodu: poloměr = D·tan(42°); textura má
+    // střed pásu na 231/256 poloviny plátna → měřítko dorovná poměr
+    const D = 30000
+    const s = 2 * D * Math.tan(42 * Math.PI / 180) * (256 / 231)
+    this.rainbow.scale.set(s, s, 1)
+    this.scene.add(this.rainbow)
   }
 
   /** Je slunce z pohledu kamery schované za terénem? (pochod po heightmapě) */
@@ -467,7 +543,29 @@ export class Atmosphere {
     }
     const o = this.glare.material.opacity
     this.glare.material.opacity = o + ((this._glareTarget ?? 0) - o) * Math.min(1, dt * 3.5)
+
+    // duchové odlesky: zrcadlení polohy slunce přes střed obrazu.
+    // NDC hloubka je nelineární — bod z unprojectu proto ukotvit na pevnou
+    // vzdálenost od kamery, jinak sprite skončí metr před objektivem.
+    if (this.ghosts) {
+      _ndc.copy(this.glare.position).project(camera)
+      const inView = _ndc.z < 1 && Math.abs(_ndc.x) < 1.25 && Math.abs(_ndc.y) < 1.25
+      for (const { f, spr } of this.ghosts) {
+        if (!inView) { spr.material.opacity = 0; continue }
+        _tmpV.set(_ndc.x * f, _ndc.y * f, 0.5).unproject(camera)
+          .sub(camera.position).normalize()
+        spr.position.copy(camera.position).addScaledVector(_tmpV, 8000)
+        spr.material.opacity = this.glare.material.opacity * 0.8
+      }
+    }
+
+    // duha stojí na protisluneční straně a jede s kamerou (jako doopravdy)
+    if (this.rainbow) {
+      this.rainbow.position.copy(camera.position).addScaledVector(this.sunDir, -30000)
+    }
   }
 }
 
 const _axis = new THREE.Vector3()
+const _ndc = new THREE.Vector3()
+const _tmpV = new THREE.Vector3()
