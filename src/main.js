@@ -149,7 +149,7 @@ class Game {
     // Světelný rozpočet: dřív dir 2,1 + hemi 0,85 přes už zapečený hillshade
     // = přes trojnásobek, všechno vypálené do sytě zelené. Teď stínuje jen
     // skutečné slunce a součet drží pod ~1,8, takže terén má tvar a barvu.
-    const sunLight = new THREE.DirectionalLight(sunCol, 1.42 * (1 - 0.5 * cc))
+    const sunLight = new THREE.DirectionalLight(sunCol, 1.5 * (1 - 0.5 * cc))
     sunLight.position.copy(this.sunDir).multiplyScalar(20000)
     this.scene.add(sunLight)
     // oblohové světlo vyplňuje stíny domodra, odraz od země dozelena
@@ -157,7 +157,8 @@ class Game {
     // rozptýleným světlem oblohy (proto jsou stíny modré, ne černé).
     // Barva musí být bledá: sytě modré nebe obarvilo celou severní stěnu
     // masivu do ocelova, přitom sníh ve stínu je světle modrobílý.
-    this.scene.add(new THREE.HemisphereLight(0xc2d8ee, 0x7d8a63, 0.8 + 0.5 * cc))
+    // odraz od země zeleněji — sytá vegetace si říká o sytější bounce
+    this.scene.add(new THREE.HemisphereLight(0xc2d8ee, 0x86975e, 0.8 + 0.5 * cc))
 
     // obloha: gradient + sluneční kotouč + opar u horizontu
     // barva oparu se počítá dřív než obloha — sdílejí ji (viz uHorizon)

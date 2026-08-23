@@ -36,6 +36,8 @@ const GradeShader = {
       c = c * c * (3.0 - 2.0 * c) * 0.35 + c * 0.65;
       // světla do tepla, stíny do chladu — takhle vypadá sluneční den
       float l = dot(c, vec3(0.299, 0.587, 0.114));
+      // vibrance: přisytit, ale málo — sytost je hlavně v barvách terénu
+      c = mix(vec3(l), c, 1.12);
       c += vec3(0.055, 0.022, -0.03) * uWarm * smoothstep(0.45, 1.0, l);
       c += vec3(-0.02, 0.0, 0.045) * uWarm * (1.0 - smoothstep(0.0, 0.5, l));
       // vinětace: oko pak drží pohled uprostřed

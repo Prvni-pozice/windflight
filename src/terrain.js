@@ -250,19 +250,21 @@ export class Terrain {
     const colors = new Float32Array(gw * gh * 3)
     const normals = new Float32Array(gw * gh * 3)
     const c = new THREE.Color()
-    // Alpská paleta: tlumenější a méně sytá než dřív. Zelená v horách
-    // nikdy není "trávníková" — je do šeda a s výškou usychá do žluta.
-    const rock = new THREE.Color(0x8a8378)
+    // Alpská paleta, kolo 2: víc chromy ve vegetaci (šťavnaté údolí, zlatavé
+    // hole), skála a suť lehce do tepla. Sytost dělá "malovaný" dojem,
+    // hloubku pak dodají velké barevné laloky a teplé jižní svahy níže.
+    const rock = new THREE.Color(0x8d8478)
     const rockDark = new THREE.Color(0x5d584f)
-    const scree = new THREE.Color(0x9a9184)   // suť pod stěnami
+    const scree = new THREE.Color(0xa19484)   // suť pod stěnami
     const snow = new THREE.Color(0xf2f6fb)
     const glacier = new THREE.Color(0xd6e6f0)
     const crevasse = new THREE.Color(0x6f93ad) // led v hloubce trhlin
-    const forest = new THREE.Color(0x3e4c39)
-    const alpine = new THREE.Color(0x8a9463)  // hole nad lesem, spíš do žluta
-    const valley = new THREE.Color(0x7f8a63)
-    const water = new THREE.Color(0x4a6b82)
+    const forest = new THREE.Color(0x39603c)
+    const alpine = new THREE.Color(0x9aa858)  // hole nad lesem, do zlatova
+    const valley = new THREE.Color(0x6f9c50)
+    const water = new THREE.Color(0x3f6f8e)
     const town = new THREE.Color(0x8e877e)
+    const heather = new THREE.Color(0x9b7f8e) // vřes a kvetoucí hole
 
     for (let gz = 0; gz < gh; gz++) {
       for (let gx = 0; gx < gw; gx++) {
@@ -285,6 +287,9 @@ export class Terrain {
         // se pak vlní v plochách, jak to v horách vypadá
         const n01 = vnoise(gx / 9, gz / 9, 1)
         const n02 = vnoise(gx / 3.5, gz / 3.5, 7)
+        // velké laloky (~1,5 km): svěží vs. sušší louky — krajina pak není
+        // jedna plocha zelené, ale mozaika jako z výškové fotky
+        const n03 = vnoise(gx / 26, gz / 26, 3)
 
         // Orientace svahu: nz > 0 = svah kouká na JIH (osa z míří k jihu).
         // Na jižních stráních taje dřív → sníh i les sahají výš; severní
@@ -323,6 +328,14 @@ export class Terrain {
           } else {                     // tráva a pole
             c.copy(h > treeLine ? alpine : valley)
           }
+          // ── šťavnatost vegetace: velké laloky svěžести + jižní svahy
+          //    do teplé žluti (slunce "vypaluje"), severní chladnější ──
+          if (klass === 10 || klass === 20 || klass === 30 || klass === 100 || klass === 40) {
+            const lush = (n03 - 0.5) * 2
+            c.offsetHSL(-south * 0.012 + lush * 0.008, 0.10 + lush * 0.05, 0.012 + south * 0.008)
+            // kvetoucí vřesové fleky nad hranicí lesa
+            if (h > treeLine - 100 && n02 > 0.74) c.lerp(heather, Math.min(1, (n02 - 0.74) * 3) * 0.3)
+          }
           // Skála přebíjí všechno na stěnách: v 10m datech je na srázech
           // šum a travnatý flek uprostřed severní stěny vypadá divně.
           if (slope > 0.55 && klass !== 70) c.lerp(rockDark, Math.min(1, (slope - 0.55) * 2))
@@ -334,7 +347,7 @@ export class Terrain {
           }
           c.offsetHSL((n02 - 0.5) * 0.02, (n01 - 0.5) * 0.05, (n02 - 0.5) * 0.05)
           const aoK = this._aoAt(ao, gx, gz)
-          const fK = (0.68 + 0.32 * aoK) * (1 - snowy) + (0.93 + 0.07 * aoK) * snowy
+          const fK = (0.73 + 0.27 * aoK) * (1 - snowy) + (0.93 + 0.07 * aoK) * snowy
           colors[i * 3] = c.r * fK
           colors[i * 3 + 1] = c.g * fK
           colors[i * 3 + 2] = c.b * fK
@@ -362,6 +375,12 @@ export class Terrain {
           c.copy(valley).lerp(forest, Math.min(1, (h - 700) / Math.max(400, treeLine - 700)))
           if (slope > 0.34) c.lerp(rock, Math.min(1, (slope - 0.34) * 1.4))
         }
+        // šťavnatost vegetace — stejné ladění jako u dat pokrytí výše
+        if (h <= snowLine && slope <= 0.5) {
+          const lush = (n03 - 0.5) * 2
+          c.offsetHSL(-south * 0.012 + lush * 0.008, 0.10 + lush * 0.05, 0.012 + south * 0.008)
+          if (h > treeLine - 100 && n02 > 0.74) c.lerp(heather, Math.min(1, (n02 - 0.74) * 3) * 0.3)
+        }
         // jemná nepravidelnost, ať plochy nejsou jako z plastu
         c.offsetHSL((n02 - 0.5) * 0.02, (n01 - 0.5) * 0.06, (n02 - 0.5) * 0.055)
 
@@ -375,7 +394,7 @@ export class Terrain {
         const aoV = this._aoAt(ao, gx, gz)
         // okluze smí tmavit mírněji, než když byla jediným zdrojem hloubky —
         // reliéf teď kreslí hlavně vržené stíny slunce (viz applyShadows)
-        const f = (0.68 + 0.32 * aoV) * (1 - snowy) + (0.93 + 0.07 * aoV) * snowy
+        const f = (0.73 + 0.27 * aoV) * (1 - snowy) + (0.93 + 0.07 * aoV) * snowy
         const blue = (1 - aoV) * snowy * 0.35 // modrý nádech sněhových stínů
         colors[i * 3] = c.r * f * (1 - blue * 0.09)
         colors[i * 3 + 1] = c.g * f * (1 - blue * 0.04)
@@ -401,8 +420,9 @@ export class Terrain {
         const coarse =
           grid[y0 * G + x0] * (1 - tx) * (1 - ty) + grid[y0 * G + x0 + 1] * tx * (1 - ty) +
           grid[(y0 + 1) * G + x0] * (1 - tx) * ty + grid[(y0 + 1) * G + x0 + 1] * tx * ty
-        // víc kontrastu než dřív: povrch pak zblízka nevypadá jako plast
-        const v = 172 + coarse * 66 + rnd() * 34
+        // kontrast pro strukturu zblízka, ale posunutý nahoru — tmavý šum
+        // špinil barvy a sytá paleta pak vypadala zaprášeně
+        const v = 186 + coarse * 54 + rnd() * 26
         const i = (y * 512 + x) * 4
         dimg.data[i] = v; dimg.data[i + 1] = v; dimg.data[i + 2] = v
         dimg.data[i + 3] = 255

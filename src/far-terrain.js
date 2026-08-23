@@ -56,8 +56,8 @@ export class FarTerrain {
     // barvy: hrubá hypsometrie, do dálky stejně všechno spolkne opar
     const rock = new THREE.Color(0x87817a)
     const snow = new THREE.Color(0xeef3f8)
-    const forest = new THREE.Color(0x4a6046)
-    const low = new THREE.Color(0x7e8d6a)
+    const forest = new THREE.Color(0x47673f)
+    const low = new THREE.Color(0x7a9a5e)
     const c = new THREE.Color()
 
     const xs = new Float32Array(gw), zs = new Float32Array(gh)

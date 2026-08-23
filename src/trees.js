@@ -97,16 +97,26 @@ export class Forest {
           sc.set(s, s * (0.9 + rr * 0.3), s)
           m.compose(_v.set(x, h - 1, z), q, sc)
           this.near.setMatrixAt(i, m)
+          this.near.setColorAt(i, treeTint(_c, rr, rs))
           i++
         }
       }
     }
     this.near.count = i
     this.near.instanceMatrix.needsUpdate = true
+    if (this.near.instanceColor) this.near.instanceColor.needsUpdate = true
   }
 }
 
 const _v = new THREE.Vector3()
+const _c = new THREE.Color()
+
+/** Barevná variace lesa: smrky od modrozelené po žlutozelenou, sem tam
+ *  světlý listnáč — jednolitá plocha se rozpadne na jednotlivé koruny. */
+function treeTint(out, rr, rs) {
+  if (rr < 0.1) return out.setRGB(1.16, 1.14, 0.78)          // bříza/modřín
+  return out.setRGB(0.86 + rr * 0.3, 0.96 + rs * 0.14, 0.82 + (1 - rr) * 0.24)
+}
 
 function buildTreeAssets() {
   const rng = mulberry32(4242)
@@ -180,10 +190,12 @@ function buildFarLayer(scene, terrain, towns, COUNT) {
     sc.set(s, s, s)
     m.compose(new THREE.Vector3(x, h - 1, z), q, sc)
     mesh.setMatrixAt(i, m)
+    mesh.setColorAt(i, treeTint(_c, rng(), rng()))
     i++
   }
   mesh.count = i
   mesh.instanceMatrix.needsUpdate = true
+  if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true
   mesh.frustumCulled = false
   scene.add(mesh)
   return mesh

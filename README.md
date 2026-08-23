@@ -87,6 +87,11 @@ zatáčení náklonem (opadání roste), přetažení pod ~60 km/h, snos větrem
 - **Duha**: když prší a slunce je pod ~40°, na protisluneční straně
   (42° kruh, hory ji zakrývají). Normální průhlednost, ne additive —
   na syté modré obloze aditivní míchání červenou nevyrobí.
+- **Šťavnatá krajina** (kolo 2 palety): sytější vegetace, velké laloky
+  svěží vs. sušší louky (~1,5 km šum), jižní svahy do teplé žluti a
+  severní chladnější, vřesové fleky nad hranicí lesa, barevná variace
+  stromů per instance (instanceColor), světlejší detailní šum (tmavý
+  špinil barvy), mírně teplejší slunce + vibrance v grade shaderu.
 - Ladění bez čekání na počasí (URL): `?cas=8:00` (UTC),
   `?mraky=70&cirry=80&dest=2&vitr=9&inverze=0.9`, `?debug` → `window.__wf`.
 
