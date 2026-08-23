@@ -65,8 +65,20 @@ zatáčení náklonem (opadání roste), přetažení pod ~60 km/h, snos větrem
   jako zbytek scény, jinak s efekty vyblednou.
 - **Skutečné pokrytí** (ESA WorldCover 10 m): les roste tam, kde roste,
   ledovce jsou ledovce, Arve je v údolí vidět. Řídí barvu terénu i to,
-  kam se sázejí stromy.
-- Ladění denní doby bez čekání: `?cas=8:00` (UTC) v URL.
+  kam se sázejí stromy. Ledovce mají modravé příčné pruhy trhlin tam,
+  kde tečou (mírný sklon).
+- **Nálada dne** (`src/atmosphere.js`, vše jen vizuální, fyziku nemění):
+  - ranní **inverze** — moře mlhy v údolích (dopoledne, nízké slunce,
+    slabý vítr), dvě šumové hladiny s driftem po větru;
+  - **cirry** podle skutečné vysoké oblačnosti (`cloud_cover_high`);
+  - **dešťové clony** od základny mraků k zemi, když v Chamonix prší
+    (`precipitation`), opřené do větru, s tmavým mrakem nahoře;
+  - **sněžné vlajky** z hřebenů nad ~3750 m při větru ≥ 5 m/s (GPU částice);
+  - **sluneční glare** s ručním zákrytem terénem (za hřebenem zhasne).
+- **Stříbrné lemování mraků**: přes mrak proti slunci prosvítá obrys
+  (rim + protisvětlo ve shaderu mraku, bloom si ho rozzáří).
+- Ladění bez čekání na počasí (URL): `?cas=8:00` (UTC),
+  `?mraky=70&cirry=80&dest=2&vitr=9&inverze=0.9`, `?debug` → `window.__wf`.
 
 ## Stack a data
 - Vite + Three.js, WebAudio (vario + šum větru). Port dev serveru **5185**.

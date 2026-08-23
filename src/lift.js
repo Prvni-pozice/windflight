@@ -15,34 +15,56 @@ function mulberry32(seed) {
 }
 
 /**
- * Materiál kumulu. Mrak není matný povrch — světlo jím prochází a rozptyluje
+ * Materiál mraku. Mrak není matný povrch — světlo jím prochází a rozptyluje
  * se, takže vršek svítí, boky jsou perleťové a základna je šedomodrá.
  * Lambert tohle neumí (spodek by dobarvila zelená ze země), proto pár řádek
- * vlastního shaderu: barva podle sklonu normály + teplý přísvit od slunce.
+ * vlastního shaderu: barva podle sklonu normály + teplý přísvit od slunce
+ * + stříbrné lemování, když se díváš přes mrak proti slunci.
+ * Paletu jde přebít (tmavé dešťové mraky v atmosphere.js).
  */
-function cumulusMaterial(sunDir) {
+export function cloudMaterial(sunDir, {
+  base = new THREE.Color(0.62, 0.66, 0.74),  // šedomodrá základna
+  top = new THREE.Color(1.0, 0.99, 0.97),    // osvětlený vrchol
+  boost = 1.5,
+} = {}) {
   return new THREE.ShaderMaterial({
-    uniforms: { uSun: { value: sunDir.clone() } },
+    uniforms: {
+      uSun: { value: sunDir.clone() },
+      uBase: { value: base },
+      uTop: { value: top },
+      uBoost: { value: boost },
+    },
     vertexShader: /* glsl */`
       varying vec3 vN;
+      varying vec3 vW;
       void main() {
         vN = normalize(mat3(modelMatrix) * normal);
-        gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+        vec4 wp = modelMatrix * vec4(position, 1.0);
+        vW = wp.xyz;
+        gl_Position = projectionMatrix * viewMatrix * wp;
       }`,
     fragmentShader: /* glsl */`
       uniform vec3 uSun;
+      uniform vec3 uBase;
+      uniform vec3 uTop;
+      uniform float uBoost;
       varying vec3 vN;
+      varying vec3 vW;
       void main() {
         vec3 n = normalize(vN);
         float up = n.y * 0.5 + 0.5;                 // 1 = vzhůru, 0 = dolů
-        vec3 base = vec3(0.62, 0.66, 0.74);          // šedomodrá základna
-        vec3 top = vec3(1.0, 0.99, 0.97);            // osvětlený vrchol
-        vec3 col = mix(base, top, smoothstep(0.15, 0.92, up));
+        vec3 col = mix(uBase, uTop, smoothstep(0.15, 0.92, up));
         float sun = max(dot(n, normalize(uSun)), 0.0);
         col += vec3(0.10, 0.08, 0.05) * pow(sun, 3.0); // přisvícení od slunce
+        // stříbrné lemování: mrak mezi mnou a sluncem prosvítá po obrysu
+        // (protisvětlo v mracích — bloom si ho pak přirozeně rozzáří)
+        vec3 V = normalize(vW - cameraPosition);
+        float rim = pow(1.0 - abs(dot(n, V)), 3.0);
+        float behind = smoothstep(0.55, 0.92, dot(V, normalize(uSun)));
+        col += vec3(1.0, 0.98, 0.92) * rim * behind * 0.9;
         // do lineárního prostoru a přes stejné tónové mapování jako scéna
         // (viz stejná poznámka u oblohy v main.js)
-        gl_FragColor = vec4(pow(col, vec3(2.2)) * 1.5, 1.0);
+        gl_FragColor = vec4(pow(col, vec3(2.2)) * uBoost, 1.0);
         #include <tonemapping_fragment>
         #include <colorspace_fragment>
       }`,
@@ -280,7 +302,7 @@ export class LiftField {
     // Lambert prosvítal vlastními vnitřními stěnami a spodek dobarvovala
     // zelená ze země. Teď je materiál neprůhledný a barvu si řídí sám.
     this.clouds = []
-    const cloudMat = cumulusMaterial(this.sunDir)
+    const cloudMat = cloudMaterial(this.sunDir)
     for (const th of this.thermals) {
       const cl = new THREE.Group()
       const parts = []

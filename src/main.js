@@ -15,6 +15,7 @@ import { buildScenery } from './scenery.js'
 import { Forest } from './trees.js'
 import * as settings from './settings.js'
 import { PostFX } from './postfx.js'
+import { Atmosphere } from './atmosphere.js'
 
 const START = { lat: 45.9290, lon: 6.8560, alt: 2600, headingDeg: 20 } // nad Chamonix, čelem k Bréventu
 
@@ -43,7 +44,8 @@ class Game {
 
     this.ui = new UI({
       weatherLabel: `${weather.label} · vítr ${Math.round(weather.windSpeed)} m/s ` +
-        `${dirName(weather.windDirDeg)} · oblačnost ${Math.round(weather.cloudCover * 100)} %`,
+        `${dirName(weather.windDirDeg)} · oblačnost ${Math.round(weather.cloudCover * 100)} %` +
+        (weather.precip > 0.05 ? ` · déšť ${weather.precip.toFixed(1)} mm/h` : ''),
       gateTotal: this.gates.total,
       onStart: async () => {
         this.vario.init()
@@ -114,6 +116,8 @@ class Game {
     this.clock = new THREE.Clock()
     this.renderer.setAnimationLoop(() => this._tick())
     addEventListener('resize', () => this._onResize())
+    // ladicí hák pro screenshotové kontroly (viz ?cas= ve weather.js)
+    if (new URLSearchParams(location.search).has('debug')) window.__wf = this
   }
 
   _setupRenderer() {
@@ -227,6 +231,9 @@ class Game {
 
     // stíny až tady: potřebují znát slunce (terén se staví dřív) i mraky
     this.terrain.applyShadows(this.sunDir, this.lift.cloudShadowTexture(this.sunDir, this.terrain))
+
+    // nálada dne: ranní inverze, cirry, dešťové clony, sněžné vlajky, glare
+    this.atmo = new Atmosphere(this.scene, this.terrain, this.weather, this.cond, this.sun, this.sunDir)
   }
 
   startPoint() {
@@ -497,6 +504,7 @@ class Game {
     if (!this.paused) {
       this._worldT = t
       this.lift.update(dt)
+      this.atmo.update(dt)
       this.glider.updateTrails()
     }
     this.gates.update(this._worldT ?? t)
@@ -511,6 +519,7 @@ class Game {
       this.camera.updateProjectionMatrix()
     }
     this.sky.position.copy(this.camera.position)
+    this.atmo.updateGlare(this.camera, dt)
     if (this.postfx) this.postfx.render()
     else this.renderer.render(this.scene, this.camera)
   }

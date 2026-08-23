@@ -79,26 +79,5 @@ export function buildScenery(scene, terrain) {
   runway.rotation.z = 0.5 // podél údolí
   runway.position.set(strip.x, stripH + 1, strip.z)
   scene.add(runway)
-
-  // cirry vysoko nad masivem — jemné pruhy
-  const cirCanvas = document.createElement('canvas')
-  cirCanvas.width = 256; cirCanvas.height = 64
-  const cctx = cirCanvas.getContext('2d')
-  cctx.clearRect(0, 0, 256, 64)
-  for (let k = 0; k < 26; k++) {
-    cctx.fillStyle = `rgba(255,255,255,${0.05 + rng() * 0.1})`
-    const y = rng() * 64
-    cctx.fillRect(rng() * 200 - 20, y, 60 + rng() * 120, 1.5 + rng() * 3)
-  }
-  const cirTex = new THREE.CanvasTexture(cirCanvas)
-  for (let k = 0; k < 4; k++) {
-    const cir = new THREE.Mesh(
-      new THREE.PlaneGeometry(24000, 6000),
-      new THREE.MeshBasicMaterial({ map: cirTex, transparent: true, opacity: 0.5, depthWrite: false }),
-    )
-    cir.rotation.x = -Math.PI / 2
-    cir.position.set(6000 + rng() * 24000, 7300 + k * 350, 5000 + rng() * 22000)
-    cir.rotation.z = rng() * Math.PI
-    scene.add(cir)
-  }
+  // cirry se přestěhovaly do atmosphere.js — řídí je skutečná vysoká oblačnost
 }

@@ -230,6 +230,7 @@ export class Terrain {
     const scree = new THREE.Color(0x9a9184)   // suť pod stěnami
     const snow = new THREE.Color(0xf2f6fb)
     const glacier = new THREE.Color(0xd6e6f0)
+    const crevasse = new THREE.Color(0x6f93ad) // led v hloubce trhlin
     const forest = new THREE.Color(0x3e4c39)
     const alpine = new THREE.Color(0x8a9463)  // hole nad lesem, spíš do žluta
     const valley = new THREE.Color(0x7f8a63)
@@ -273,6 +274,14 @@ export class Terrain {
         if (klass) {
           if (klass === 70) {          // trvalý sníh a led = ledovce
             c.copy(slope < 0.3 ? glacier : snow)
+            // Trhliny a séraky: modravé příčné pruhy zhruba po vrstevnicích
+            // tam, kde ledovec teče (mírný sklon). Z výšky je to TEN detail,
+            // který odliší živý ledovec od bílé silnice — viz Mer de Glace.
+            if (slope > 0.05 && slope < 0.5) {
+              const band = Math.abs(((h + n02 * 14) % 26 + 26) % 26 / 26 - 0.5)
+              const crev = Math.max(0, 1 - band / 0.16) * Math.min(1, slope * 6)
+              c.lerp(crevasse, crev * 0.4)
+            }
             snowy = 1
           } else if (klass === 80) {   // voda
             c.copy(water)

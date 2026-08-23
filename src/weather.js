@@ -10,12 +10,14 @@ export async function loadWeather() {
     windSpeed: 4.5,        // m/s v hladině hřebenů
     windDirDeg: 300,       // odkud fouká (meteorologicky) — SZ
     cloudCover: 0.3,
+    cloudHigh: 0.25,       // vysoká oblačnost (cirry)
+    precip: 0,             // srážky mm/h → dešťové clony
     temp: 18,
     label: 'záložní scénář (API nedostupné)',
   }
   try {
     const url = `https://api.open-meteo.com/v1/forecast?latitude=${LAT}&longitude=${LON}` +
-      '&current=temperature_2m,cloud_cover,wind_speed_10m,wind_direction_10m' +
+      '&current=temperature_2m,cloud_cover,cloud_cover_high,precipitation,wind_speed_10m,wind_direction_10m' +
       '&hourly=wind_speed_850hPa,wind_direction_850hPa&forecast_hours=1&wind_speed_unit=ms&timezone=auto'
     const r = await fetch(url, { signal: AbortSignal.timeout(6000) })
     if (!r.ok) throw new Error(`HTTP ${r.status}`)
@@ -24,17 +26,32 @@ export async function loadWeather() {
     // vítr ve výšce hřebenů (850 hPa ≈ 1500 m) je pro plachtění směrodatnější
     const w850s = d.hourly?.wind_speed_850hPa?.[0]
     const w850d = d.hourly?.wind_direction_850hPa?.[0]
-    return {
+    return applyUrlOverrides({
       live: true,
       windSpeed: Math.max(1, w850s ?? cur.wind_speed_10m * 1.6),
       windDirDeg: w850d ?? cur.wind_direction_10m,
       cloudCover: (cur.cloud_cover ?? 30) / 100,
+      cloudHigh: (cur.cloud_cover_high ?? 0) / 100,
+      precip: cur.precipitation ?? 0,
       temp: cur.temperature_2m ?? 15,
       label: `živé počasí ${new Date().toLocaleDateString('cs-CZ')}`,
-    }
+    })
   } catch {
-    return fallback
+    return applyUrlOverrides(fallback)
   }
+}
+
+/** Ladicí přepisy počasí v URL (jako `?cas=`): `?mraky=70&cirry=80&dest=2&vitr=6`.
+ *  Bez nich se nic nemění — hraje se na skutečné počasí. */
+function applyUrlOverrides(w) {
+  if (typeof location === 'undefined') return w
+  const q = new URLSearchParams(location.search)
+  const num = k => { const v = parseFloat(q.get(k)); return Number.isFinite(v) ? v : null }
+  const mraky = num('mraky'); if (mraky != null) w.cloudCover = Math.min(1, mraky / 100)
+  const cirry = num('cirry'); if (cirry != null) w.cloudHigh = Math.min(1, cirry / 100)
+  const dest = num('dest'); if (dest != null) w.precip = dest
+  const vitr = num('vitr'); if (vitr != null) w.windSpeed = vitr
+  return w
 }
 
 /** Odvozené letové parametry dne. Termika má vždy hratelné minimum. */
