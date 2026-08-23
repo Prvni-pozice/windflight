@@ -76,7 +76,11 @@ class Game {
     document.addEventListener('visibilitychange', () => {
       if (document.hidden) this._pause('Hra se sama zastavila, když jsi přepnul jinam')
     })
-    addEventListener('blur', () => this._pause())
+    // Ztráta fokusu okna pauzne jen na desktopu (klik do jiného okna).
+    // Na mobilu NE: prohlížeče tam window blur střílejí i při dotycích a
+    // systémových gestech, takže tah prstem po obrazovce zastavoval let.
+    // Skutečný odchod ze hry (hovor, přepnutí aplikace) jistí visibilitychange.
+    if (!this.isTouch) addEventListener('blur', () => this._pause())
 
     this.ui.buildMinimap(this.terrain, this.gates)
     this.ui.onMuteToggle = () => this.vario.toggleMute()
