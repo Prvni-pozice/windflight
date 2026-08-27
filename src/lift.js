@@ -26,6 +26,7 @@ export function cloudMaterial(sunDir, {
   base = new THREE.Color(0.62, 0.66, 0.74),  // šedomodrá základna
   top = new THREE.Color(1.0, 0.99, 0.97),    // osvětlený vrchol
   boost = 1.5,
+  erode = 1.6,
 } = {}) {
   return new THREE.ShaderMaterial({
     uniforms: {
@@ -33,6 +34,7 @@ export function cloudMaterial(sunDir, {
       uBase: { value: base },
       uTop: { value: top },
       uBoost: { value: boost },
+      uErode: { value: erode },
     },
     vertexShader: /* glsl */`
       varying vec3 vN;
@@ -48,17 +50,50 @@ export function cloudMaterial(sunDir, {
       uniform vec3 uBase;
       uniform vec3 uTop;
       uniform float uBoost;
+      uniform float uErode;
       varying vec3 vN;
       varying vec3 vW;
+
+      // hodnotový šum ve světových metrech — kotví se na mrak, takže
+      // se struktura nechvěje, když kolem něj hráč prolétá
+      float h31(vec3 p) {
+        p = fract(p * 0.3183099 + vec3(0.71, 0.113, 0.419));
+        p *= 17.0;
+        return fract(p.x * p.y * p.z * (p.x + p.y + p.z));
+      }
+      float vnoise(vec3 x) {
+        vec3 i = floor(x), f = fract(x);
+        f = f * f * (3.0 - 2.0 * f);
+        return mix(
+          mix(mix(h31(i), h31(i + vec3(1,0,0)), f.x),
+              mix(h31(i + vec3(0,1,0)), h31(i + vec3(1,1,0)), f.x), f.y),
+          mix(mix(h31(i + vec3(0,0,1)), h31(i + vec3(1,0,1)), f.x),
+              mix(h31(i + vec3(0,1,1)), h31(i + vec3(1,1,1)), f.x), f.y), f.z);
+      }
+      float fbm(vec3 p) {
+        return vnoise(p) * 0.55 + vnoise(p * 2.7) * 0.28 + vnoise(p * 6.3) * 0.17;
+      }
+
       void main() {
         vec3 n = normalize(vN);
+        vec3 V = normalize(vW - cameraPosition);
+
+        // OBRYSOVÁ EROZE: kumulus není koule, okraje má rozdrbané do
+        // chuchvalců. Odhryzáváme jen tam, kde plocha uhýbá od pohledu
+        // (tedy na siluetě) — uvnitř zůstane mrak plný, jinak by prosvítal.
+        float fb = fbm(vW / 46.0);
+        float edge = pow(1.0 - abs(dot(n, V)), 1.7);
+        if (fb < (edge - 0.42) * 1.35 * uErode) discard;
+
         float up = n.y * 0.5 + 0.5;                 // 1 = vzhůru, 0 = dolů
         vec3 col = mix(uBase, uTop, smoothstep(0.15, 0.92, up));
+        // šum i do barvy: chuchvalce dostanou vlastní světlo a stín, takže
+        // mrak vypadá jako objem, ne jako natřená skořápka
+        col *= 0.90 + 0.20 * smoothstep(0.30, 0.72, fbm(vW / 21.0));
         float sun = max(dot(n, normalize(uSun)), 0.0);
         col += vec3(0.10, 0.08, 0.05) * pow(sun, 3.0); // přisvícení od slunce
         // stříbrné lemování: mrak mezi mnou a sluncem prosvítá po obrysu
         // (protisvětlo v mracích — bloom si ho pak přirozeně rozzáří)
-        vec3 V = normalize(vW - cameraPosition);
         float rim = pow(1.0 - abs(dot(n, V)), 3.0);
         float behind = smoothstep(0.55, 0.92, dot(V, normalize(uSun)));
         col += vec3(1.0, 0.98, 0.92) * rim * behind * 0.9;

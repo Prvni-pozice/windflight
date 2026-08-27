@@ -13,13 +13,17 @@ Chamonix). Bez termiky a svahového proudění to nejde — měří se celkový 
 - **Variometr**: pípá ve stoupání, houká v silném klesání; HUD má 20s průměr.
 
 ## Ovládání
-- Desktop: šipky NEBO tažení myší (knipl) nebo gamepad, R restart,
-  TAB minimapa, ESC pauza, C kokpit.
+- Desktop: šipky (**↓ přitáhnout = stoupat**, ↑ potlačit) NEBO tažení myší
+  (knipl) nebo gamepad, R restart, TAB minimapa, ESC pauza, C kokpit.
 - Mobil: **náklon telefonu** (dvojklep = rekalibrace) nebo **knipl prstem** —
   přepíná se za letu tlačítkem vpravo dole, stejně jako směr výšky (⇅),
   pohled (👁) a pauza (⏸). Dvouprstý tap = minimapa.
-- Směr výšky: výchozí je **náklon/tah k sobě = nos nahoru, stoupám**
+- Směr výšky: výchozí je **přitažení = nos nahoru, stoupám**
   (`invertY = false` v `src/settings.js`), tedy klasika jako knipl.
+  Přitažení znamená: telefon/prst k sobě, myš dolů, páčka k sobě, šipka ↓.
+  Řídí to JEDNO znaménko (`s` v `getInput`) pro všechny vstupy a přepínač ⇅
+  je od 27. 8. 2026 i na desktopu (⚙ Nastavení). Dřív měla klávesnice směr
+  opačný než zbytek hry a přepínač na ni nesahal.
   Že to dřív působilo obráceně, nezpůsobilo mapování vstupu, ale **opačné
   znaménko při kreslení sklonu modelu** (nos modelu míří na −z, takže
   `rotateX(+theta)` ho zvedal, přestože `theta > 0` je nos dolů). Vizuál
@@ -92,6 +96,20 @@ zatáčení náklonem (opadání roste), přetažení pod ~60 km/h, snos větrem
   severní chladnější, vřesové fleky nad hranicí lesa, barevná variace
   stromů per instance (instanceColor), světlejší detailní šum (tmavý
   špinil barvy), mírně teplejší slunce + vibrance v grade shaderu.
+- **Objem v kumulech** (kolo 3): silueta se odhryzává 3D šumem ve světových
+  metrech (`uErode` v `cloudMaterial`) — jen na obrysu, uvnitř by mrak
+  prosvítal. Stejný šum jde i do barvy, takže chuchvalce mají vlastní
+  světlo a stín.
+- **Tepelné chvění** nad stoupákem (jen vysoká kvalita, `ShimmerShader`
+  v `src/postfx.js`): sloupce dodává `_shimmerCols()` v `main.js` v uv
+  souřadnicích. Vidět je z pár set metrů — uvnitř termiky není proti čemu
+  ho poměřit, z dálky splyne s oparem.
+- **Světla Chamonix** za soumraku (`src/scenery.js`): okna se rozsvítí pod
+  7° výšky slunce, barva je nad jedničkou, aby přetekla do záře.
+- **Kondenzační pás** letadla v hladině (`_buildContrail`): stuha se kreslí
+  celá dopředu a odkrývá ji `uProg`, stáří jí řídí šířku i rozpad.
+- **Zvířený sníh** při průletu pod 26 m nad ledovcem (`src/spray.js`),
+  spouští ho třída pokrytí 70 (trvalý led) nebo výška nad 3 050 m.
 - Ladění bez čekání na počasí (URL): `?cas=8:00` (UTC),
   `?mraky=70&cirry=80&dest=2&vitr=9&inverze=0.9`, `?debug` → `window.__wf`.
 

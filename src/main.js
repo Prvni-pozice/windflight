@@ -12,6 +12,7 @@ import { Vario } from './vario.js'
 import { FlightControls } from './controls.js'
 import { UI } from './ui.js'
 import { buildScenery } from './scenery.js'
+import { SnowSpray } from './spray.js'
 import { Forest } from './trees.js'
 import * as settings from './settings.js'
 import { PostFX } from './postfx.js'
@@ -224,7 +225,7 @@ class Game {
     // do prázdna.
     this.terrain.addTo(this.scene, { withSkirt: !this.far })
     if (this.far) this.far.addTo(this.scene)
-    buildScenery(this.scene, this.terrain)
+    buildScenery(this.scene, this.terrain, this.sun)
     // les staví až _applyQuality() — jeho hustota závisí na nastavení
     this.gates = new Gates(this.scene, this.terrain)
     const route = [this.startPoint()].concat(this.gates.list.map(g => ({ x: g.x, z: g.z })))
@@ -235,6 +236,7 @@ class Game {
 
     // nálada dne: ranní inverze, cirry, dešťové clony, sněžné vlajky, glare
     this.atmo = new Atmosphere(this.scene, this.terrain, this.weather, this.cond, this.sun, this.sunDir)
+    this.spray = new SnowSpray(this.scene)
   }
 
   startPoint() {
@@ -506,6 +508,7 @@ class Game {
       this._worldT = t
       this.lift.update(dt)
       this.atmo.update(dt)
+      this.spray.update(dt, this.glider, this.terrain, innerHeight)
       this.glider.updateTrails()
       // stíny mraků plují s mraky — přepéct občas (drift za 4 s je pod
       // desetinou poloměru stínu, takže skok není vidět)
@@ -528,6 +531,7 @@ class Game {
     }
     this.sky.position.copy(this.camera.position)
     this.atmo.updateGlare(this.camera, dt)
+    if (this.postfx) this.postfx.setThermals(this._shimmerCols(), this._worldT ?? t)
     if (this.postfx) this.postfx.render()
     else this.renderer.render(this.scene, this.camera)
   }
@@ -570,6 +574,45 @@ class Game {
     _lookTarget.set(g.pos.x + sh * 60, g.pos.y - 4, g.pos.z - ch * 60)
     this.camera.lookAt(_lookTarget)
     this.camera.rotation.z += -g.bank * 0.35 // náklon horizontu v zatáčce
+  }
+
+  /**
+   * Sloupce nejbližších stoupáků promítnuté do obrazu — vstup pro tepelné
+   * chvění v postfx. Střed se bere ve VÝŠCE KLUZÁKU (komín se s výškou
+   * naklání po větru, takže pevný bod by chvěl vedle), poloměr se měří
+   * druhým bodem odsazeným doprava od kamery.
+   */
+  _shimmerCols() {
+    const cols = []
+    const gp = this.glider.pos
+    const wind = this.cond.windVec
+    const wl = Math.max(1, wind.length())
+    _shRight.setFromMatrixColumn(this.camera.matrixWorld, 0)
+    for (const th of this.lift.thermals) {
+      if (gp.y > th.top + 200 || gp.y < th.ground - 100) continue
+      const drift = Math.max(0, gp.y - th.ground) * 0.11
+      const cx = th.x + wind.x * drift / wl
+      const cz = th.z + wind.z * drift / wl
+      const d = Math.hypot(cx - gp.x, cz - gp.z)
+      if (d > 2400) continue
+      _shA.set(cx, Math.max(th.ground + 250, Math.min(th.top - 50, gp.y)), cz)
+      _shB.copy(_shA).addScaledVector(_shRight, th.r)
+      _shA.project(this.camera)
+      _shB.project(this.camera)
+      if (_shA.z > 1 || Math.abs(_shA.x) > 1.7 || Math.abs(_shA.y) > 2) continue
+      const r = Math.abs(_shB.x - _shA.x) * 0.5
+      if (r < 0.006) continue
+      // Chvění je vidět jen NA DÁLKU: uvnitř stoupáku není proti čemu ho
+      // srovnat (a rozvlnit celý obraz by byl jen kaz), z kilometrů zas
+      // splyne s oparem. Nejlíp funguje pár set metrů před nosem.
+      const near = Math.max(0, Math.min(1, (d - 130) / 320))
+      const far = 1 - Math.max(0, Math.min(1, (d - 1300) / 1100))
+      const s = Math.min(1, th.strength / 3) * near * far
+      if (s < 0.03) continue
+      cols.push({ x: _shA.x * 0.5 + 0.5, y: _shA.y * 0.5 + 0.5, r: Math.min(r, 0.34), s, d })
+    }
+    cols.sort((a, b) => a.d - b.d)
+    return cols
   }
 
   /**
@@ -677,6 +720,9 @@ function dirName(deg) {
 const _camTarget = new THREE.Vector3()
 const _lookTarget = new THREE.Vector3()
 const _proj = new THREE.Vector3()
+const _shA = new THREE.Vector3()
+const _shB = new THREE.Vector3()
+const _shRight = new THREE.Vector3()
 
 // ── bootstrap: terén + počasí paralelně ──
 const loadingEl = document.getElementById('loading')

@@ -1,6 +1,7 @@
 // atmosphere.js — nálada dne nad rámec světla a mraků termiky:
 //  • ranní inverze: moře mlhy v údolích, které dopoledne leží pod tratí
 //  • cirry podle skutečné vysoké oblačnosti (Open-Meteo cloud_cover_high)
+//  • kondenzační pás dopravního letadla v hladině nad tratí
 //  • dešťové clony pod tmavými mraky, když v Chamonix opravdu prší
 //  • sněžné vlajky z nejvyšších hřebenů, když nahoře fičí
 //  • sluneční záblesk (glare) s ručním zákrytem terénem
@@ -72,6 +73,7 @@ export class Atmosphere {
 
     this._buildInversion(rng)
     this._buildCirrus(rng)
+    this._buildContrail(rng)
     this._buildRain(rng)
     this._buildSnowBanners(rng)
     this._buildGlare()
@@ -214,6 +216,144 @@ export class Atmosphere {
       m.position.set(rng() * 34000, 7200 + rng() * 1400, rng() * 30000)
       m.renderOrder = 1
       this.group.add(m)
+    }
+  }
+
+  // ── kondenzační pás: dopravní letadlo v hladině nad tratí ──
+  /**
+   * Nad Chamonix je jedna z nejfrekventovanějších leteckých cest v Evropě,
+   * takže bílá čára pomalu rostoucí přes celou oblohu je tam skoro pořád.
+   * Herně je to měřítko: proti pásu je vidět, jak pomalu se svět hýbe.
+   *
+   * Stuha se kreslí celá dopředu a odkrývá ji `uProg` — takhle roste jen
+   * jedno číslo za snímek a nemusí se přepisovat geometrie. Stáří pruhu
+   * (`uProg − t`) mu zároveň řídí šířku (pás se rozplývá) a průhlednost.
+   */
+  _buildContrail(rng) {
+    this.contrail = null
+    const ALT = 10600 + rng() * 900
+    const t = this.terrain
+    // dráha vede přes střed mapy, kolmo si ji hráč nikdy nepostaví
+    const ang = rng() * Math.PI * 2
+    const dir = new THREE.Vector3(Math.cos(ang), 0, Math.sin(ang))
+    const mid = new THREE.Vector3(t.sizeX * 0.5, ALT, t.sizeZ * 0.5)
+    const half = 60000
+    const perp = new THREE.Vector3(-dir.z, 0, dir.x)
+    // odsazení od středu, ať pás nevede vždycky přesně nad hlavou
+    mid.addScaledVector(perp, (rng() - 0.5) * 26000)
+
+    const N = 140
+    const pos = new Float32Array((N + 1) * 2 * 3)
+    const aT = new Float32Array((N + 1) * 2)
+    const aSide = new Float32Array((N + 1) * 2)
+    const idx = []
+    for (let i = 0; i <= N; i++) {
+      const f = i / N
+      const p = mid.clone().addScaledVector(dir, (f * 2 - 1) * half)
+      for (let s = 0; s < 2; s++) {
+        const k = (i * 2 + s)
+        pos[k * 3] = p.x; pos[k * 3 + 1] = p.y; pos[k * 3 + 2] = p.z
+        aT[k] = f
+        aSide[k] = s ? 1 : -1
+      }
+      if (i < N) {
+        const a = i * 2
+        idx.push(a, a + 1, a + 2, a + 1, a + 3, a + 2)
+      }
+    }
+    const geo = new THREE.BufferGeometry()
+    geo.setAttribute('position', new THREE.BufferAttribute(pos, 3))
+    geo.setAttribute('aT', new THREE.BufferAttribute(aT, 1))
+    geo.setAttribute('aSide', new THREE.BufferAttribute(aSide, 1))
+    geo.setIndex(idx)
+    geo.computeBoundingSphere()
+
+    const mat = new THREE.ShaderMaterial({
+      uniforms: {
+        uProg: { value: 0 },
+        uPerp: { value: perp.clone() },
+        uOpacity: { value: 0.42 + 0.34 * (this.weather.cloudHigh ?? 0) },
+      },
+      transparent: true,
+      depthWrite: false,
+      side: THREE.DoubleSide,
+      vertexShader: /* glsl */`
+        attribute float aT;
+        attribute float aSide;
+        uniform float uProg;
+        uniform vec3 uPerp;
+        varying float vT;
+        varying float vSide;
+        varying float vAge;
+        void main() {
+          vT = aT;
+          vSide = aSide;
+          vAge = clamp(uProg - aT, 0.0, 1.0);
+          // čerstvý pás je tenká nitka, starý se rozfoukne do široka —
+          // a ne rovnoměrně, takže se cestou nafukuje do nepravidelných vřeten
+          float lump = 0.72 + 0.42 * sin(aT * 47.0) * sin(aT * 13.0 + 2.1);
+          float w = 55.0 + 900.0 * pow(vAge, 0.7) * lump;
+          vec3 p = position + uPerp * aSide * w;
+          gl_Position = projectionMatrix * viewMatrix * vec4(p, 1.0);
+        }`,
+      fragmentShader: /* glsl */`
+        uniform float uProg;
+        uniform float uOpacity;
+        varying float vT;
+        varying float vSide;
+        varying float vAge;
+        void main() {
+          if (vT > uProg) discard;               // před letadlem ještě nic není
+          float across = 1.0 - vSide * vSide;    // měkké okraje stuhy
+          // rozplývání: nejdřív skoro nemizí, na konci života rychle
+          float life = 1.0 - smoothstep(0.35, 1.0, vAge);
+          // roztrhané kusy, jak pás cestou nestejnoměrně vysychá — čerstvý
+          // konec je celistvý, teprve stářím se do něj dělají mezery
+          float ragged = 1.0 - vAge * (0.55 + 0.45 * sin(vT * 190.0) * sin(vT * 61.0 + 1.7));
+          float a = uOpacity * across * life * ragged;
+          if (a < 0.004) discard;
+          gl_FragColor = vec4(vec3(1.0), a);
+          #include <tonemapping_fragment>
+          #include <colorspace_fragment>
+        }`,
+    })
+    const mesh = new THREE.Mesh(geo, mat)
+    mesh.frustumCulled = false
+    mesh.renderOrder = 2
+    this.group.add(mesh)
+
+    // samotné letadlo: nepatrný bod v čele pásu (na 10 km ho jinak nevidíš)
+    const c = document.createElement('canvas')
+    c.width = c.height = 16
+    const cx = c.getContext('2d')
+    const g = cx.createRadialGradient(8, 8, 0, 8, 8, 8)
+    g.addColorStop(0, 'rgba(255,255,255,1)')
+    g.addColorStop(1, 'rgba(255,255,255,0)')
+    cx.fillStyle = g
+    cx.fillRect(0, 0, 16, 16)
+    const plane = new THREE.Sprite(new THREE.SpriteMaterial({
+      map: new THREE.CanvasTexture(c), transparent: true, depthWrite: false,
+      opacity: 0.9,
+    }))
+    plane.scale.set(320, 320, 1)
+    this.group.add(plane)
+
+    // přelet celé oblohy trvá pár minut — spěchat nemá kam
+    this.contrail = { mesh, mat, plane, mid, dir, half, speed: 1 / 260, pause: 0 }
+  }
+
+  _updateContrail(dt) {
+    const c = this.contrail
+    if (!c) return
+    if (c.pause > 0) { c.pause -= dt; return }
+    const p = c.mat.uniforms.uProg
+    p.value += c.speed * dt
+    const head = c.mid.clone().addScaledVector(c.dir, (Math.min(1, p.value) * 2 - 1) * c.half)
+    c.plane.position.copy(head)
+    c.plane.material.opacity = p.value < 1 ? 0.9 : 0
+    if (p.value > 2.0) { // pás se dorozplynul → za chvíli poletí další
+      p.value = 0
+      c.pause = 40 + 40 * (1 - (this.weather.cloudHigh ?? 0))
     }
   }
 
@@ -441,10 +581,13 @@ export class Atmosphere {
     gctx.fillStyle = gg
     gctx.fillRect(0, 0, 64, 64)
     const gtex = new THREE.CanvasTexture(gc)
+    // Barvy jsou ZÁMĚRNĚ bledé. Sytější duchové se přes aditivní míchání
+    // otiskli na zasněžený svah jako fialová skvrna — vypadalo to jako chyba
+    // vykreslování, ne jako odlesk v objektivu.
     this.ghosts = [
-      { f: 0.45, s: 1000, color: 0x59c9ad },
-      { f: -0.28, s: 700, color: 0xffb35c },
-      { f: -0.7, s: 1800, color: 0x9f7bff },
+      { f: 0.45, s: 900, color: 0xb9e6da },
+      { f: -0.28, s: 620, color: 0xffdcb4 },
+      { f: -0.7, s: 1500, color: 0xd2c4f2 },
     ].map(({ f, s, color }) => {
       const m = new THREE.SpriteMaterial({
         map: gtex, blending: THREE.AdditiveBlending, transparent: true,
@@ -525,6 +668,7 @@ export class Atmosphere {
       for (const m of this.inversion) m.material.uniforms.uTime.value = this.time
     }
     if (this.banners) this.banners.material.uniforms.uTime.value = this.time
+    this._updateContrail(dt)
     for (const cell of this.rainCells) {
       cell.position.x += this.cond.windVec.x * dt
       cell.position.z += this.cond.windVec.z * dt
@@ -539,7 +683,10 @@ export class Atmosphere {
     this._glareT = (this._glareT ?? 9) + dt
     if (this._glareT > 0.12) {
       this._glareT = 0
-      this._glareTarget = this._sunBlocked(camera.position) ? 0 : 0.42 + this.golden * 0.35
+      // po západu slunce žádný odlesk být nemůže — bez téhle podmínky
+      // visely nad soumračným údolím barevné koule z ničeho
+      const above = Math.max(0, Math.min(1, (this.sun.elevDeg + 0.5) / 3))
+      this._glareTarget = this._sunBlocked(camera.position) ? 0 : (0.42 + this.golden * 0.35) * above
     }
     const o = this.glare.material.opacity
     this.glare.material.opacity = o + ((this._glareTarget ?? 0) - o) * Math.min(1, dt * 3.5)
@@ -555,7 +702,7 @@ export class Atmosphere {
         _tmpV.set(_ndc.x * f, _ndc.y * f, 0.5).unproject(camera)
           .sub(camera.position).normalize()
         spr.position.copy(camera.position).addScaledVector(_tmpV, 8000)
-        spr.material.opacity = this.glare.material.opacity * 0.8
+        spr.material.opacity = this.glare.material.opacity * 0.3
       }
     }
 
