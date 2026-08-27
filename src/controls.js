@@ -248,16 +248,27 @@ export class FlightControls {
   getInput() {
     let pitch = 0, roll = 0
 
-    // myš-knipl: tažení dolů = přitáhnout (letecky)
+    // JEDEN směr výšky pro VŠECHNY vstupy — tohle je celé to místo, kde se
+    // rozhoduje, co znamená "přitáhnout". Výchozí (invertY = false) je
+    // klasika "přitáhnout = nos nahoru, stoupám" a přitažení je:
+    // tah myší/prstem k sobě (dolů po obrazovce), páčka k sobě, telefon
+    // k sobě a na klávesnici šipka DOLŮ.
+    // Klávesnice měla dřív směr opačný než zbytek hry (↑ = nos nahoru)
+    // a tlačítko ⇅ na ni vůbec nesahalo — na PC to proto působilo obráceně
+    // a nešlo to přepnout. Kdo sem sáhne, ať přepíše `s`, ne jednotlivé
+    // řádky: jinak se zase rozejdou.
+    const s = this.invertY ? -1 : 1
+
+    // myš-knipl: tažení dolů = přitáhnout
     if (this.mouse.active) {
       roll += Math.max(-1, Math.min(1, this.mouse.dx))
-      pitch += Math.max(-1, Math.min(1, -this.mouse.dy))
+      pitch += s * Math.max(-1, Math.min(1, -this.mouse.dy))
     }
 
-    // dotykový knipl: směr podle invertY (viz níže u náklonu)
+    // dotykový knipl: tah dolů = přitáhnout
     if (this.stick.active) {
       roll += this.stick.dx
-      pitch += (this.invertY ? 1 : -1) * this.stick.dy
+      pitch += -s * this.stick.dy
     }
 
     // gamepad: levá páčka (deadzone 0.15), zatažení = stoupat
@@ -265,12 +276,12 @@ export class FlightControls {
     if (gp) {
       const dz = v => Math.abs(v) < 0.15 ? 0 : v
       roll += dz(gp.axes[0] || 0)
-      pitch += -dz(gp.axes[1] || 0)
+      pitch += -s * dz(gp.axes[1] || 0)
     }
 
-    // klávesnice — LETECKY: šipka dolů = přitáhnout (stoupá), nahoru = potlačit
-    if (this.keys.ArrowUp) pitch -= 1
-    if (this.keys.ArrowDown) pitch += 1
+    // klávesnice — jako knipl: šipka dolů = přitáhnout (stoupá), nahoru = potlačit
+    if (this.keys.ArrowUp) pitch += s
+    if (this.keys.ArrowDown) pitch -= s
     if (this.keys.ArrowLeft || this.keys.KeyA) roll -= 1
     if (this.keys.ArrowRight || this.keys.KeyD) roll += 1
 
@@ -283,7 +294,7 @@ export class FlightControls {
       // Směr výšky: b roste = telefon se zvedá k sobě (displej blíž ke svislé).
       //  invertY = false → k sobě = nos NAHORU, stoupám (výchozí, jako knipl)
       //  invertY = true  → k sobě = nos DOLŮ (pro toho, komu sedí opak)
-      const dir = this.invertY ? 1 : -1
+      const dir = -s
       // mrtvá zóna 1,5° = klid v ruce znamená klid na kniplu
       const dz = v => Math.sign(v) * Math.max(0, Math.abs(v) - 1.5)
       pitch += dir * Math.max(-1, Math.min(1, dz(this._bF - this.neutralB) / (44 / this.sens)))

@@ -282,7 +282,8 @@ export class UI {
     document.getElementById('quality-sel').value = quality || 'auto'
     // citlivost náklonu nemá na desktopu co ovlivnit
     document.getElementById('row-sens').classList.toggle('hidden', !isTouch)
-    document.getElementById('row-invert').classList.toggle('hidden', !isTouch)
+    // směr výšky ale ANO — platí i pro šipky a myš, a tlačítko ⇅ je jen
+    // na mobilu, takže na desktopu je tenhle řádek jediná cesta k přepnutí
   }
 
   hidePause() { this.pauseOverlay.classList.add('hidden') }

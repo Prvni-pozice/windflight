@@ -131,4 +131,46 @@ function fresh() {
   assert.equal(c.setMode('tilt'), 'touch', 'bez senzoru vždy dotyk')
 }
 
-console.log('OK — ovládání drží dohodnutou konvenci (7 testů)')
+// 8) VŠECHNY vstupy míří stejně a všechny poslouchají ⇅.
+// Klávesnice tuhle konvenci dlouho porušovala (↑ = nos nahoru) a přepínač
+// na ni vůbec nesahal — na PC to působilo obráceně a nešlo to zapnout.
+{
+  const desktop = () => {
+    const c = new FlightControls()
+    c.tiltAvailable = false
+    c.setMode('touch')
+    c.setInvertY(false)
+    return c
+  }
+  // klávesnice: šipka dolů = přitáhnout = nos nahoru (pitch < 0)
+  {
+    const c = desktop()
+    c.keys.ArrowDown = true
+    assert.ok(c.getInput().pitch < -0.1, 'šipka dolů musí zvedat nos')
+    c.keys.ArrowDown = false
+    c.keys.ArrowUp = true
+    assert.ok(c.getInput().pitch > 0.1, 'šipka nahoru musí dát nos dolů')
+    c.setInvertY(true)
+    assert.ok(c.getInput().pitch < -0.1, 'po ⇅ musí šipka nahoru zvedat nos')
+  }
+  // myš-knipl: tažení dolů = přitáhnout
+  {
+    const c = desktop()
+    c.mouse.active = true
+    c.mouse.dy = 1
+    assert.ok(c.getInput().pitch < -0.1, 'tažení myší dolů musí zvedat nos')
+    c.setInvertY(true)
+    assert.ok(c.getInput().pitch > 0.1, 'po ⇅ dává tažení dolů nos dolů')
+  }
+  // gamepad: páčka k sobě (axes[1] > 0) = přitáhnout
+  {
+    globalThis.navigator = { getGamepads: () => [{ axes: [0, 1] }] }
+    const c = desktop()
+    assert.ok(c.getInput().pitch < -0.1, 'páčka k sobě musí zvedat nos')
+    c.setInvertY(true)
+    assert.ok(c.getInput().pitch > 0.1, 'po ⇅ dává páčka k sobě nos dolů')
+    globalThis.navigator = { getGamepads: () => [] }
+  }
+}
+
+console.log('OK — ovládání drží dohodnutou konvenci (8 testů)')
