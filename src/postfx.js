@@ -15,13 +15,19 @@ import { FXAAShader } from 'three/addons/shaders/FXAAShader.js'
 const MAX_COLS = 3
 
 /**
- * Tepelné chvění nad stoupákem. Termika je ohřátý vzduch, který má jiný
- * index lomu než okolí — hory za ní se vlní. Herně je to nejlevnější způsob,
- * jak stoupák prozradit i tam, kde nejsou částice ani kumulus: hráč uvidí,
- * že se kus krajiny „vaří", a zamíří tam.
+ * Tepelné chvění nad rozpáleným svahem, ze kterého startuje termika.
  *
- * Sloupce dodává main.js v souřadnicích obrazu (uv), protože jen ten ví,
- * kde termika po driftu větrem opravdu stojí.
+ * POZOR na to, co se vlastně vlní: chvění dělá teplotní rozdíl mezi vzduchem
+ * u povrchu a okolím, a ten je velký jen v přízemní vrstvě — desítky metrů
+ * nad kamením, ne kilometr vysoký komín. První verze kotvila chvění do středu
+ * komína ve výšce kluzáka, jenže ten se s výškou naklání po větru, takže se
+ * vlnil kus prázdného vzduchu šikmo vedle kopce. Teď sedí přízemní čočka
+ * na svahu a nahoru slábne.
+ *
+ * Herně je to nejlevnější způsob, jak stoupák prozradit i tam, kde ještě
+ * nejsou částice ani kumulus: hráč vidí, že se kus stráně „vaří".
+ *
+ * Souřadnice dodává main.js v obraze (uv) — jen ten ví, kde svah je.
  */
 const ShimmerShader = {
   uniforms: {
@@ -29,8 +35,9 @@ const ShimmerShader = {
     uTime: { value: 0 },
     uAspect: { value: 1.6 },
     uCount: { value: 0 },
-    // x, y = střed sloupce v uv; z = poloměr v uv; w = síla 0–1
+    // x, y = kotva na svahu v uv; z = poloměr napříč; w = dosah vzhůru
     uCols: { value: Array.from({ length: MAX_COLS }, () => new THREE.Vector4()) },
+    uStr: { value: new Float32Array(MAX_COLS) },
   },
   vertexShader: /* glsl */`
     varying vec2 vUv;
@@ -44,6 +51,7 @@ const ShimmerShader = {
     uniform float uAspect;
     uniform int uCount;
     uniform vec4 uCols[${MAX_COLS}];
+    uniform float uStr[${MAX_COLS}];
     varying vec2 vUv;
     void main() {
       vec2 uv = vUv;
@@ -51,12 +59,15 @@ const ShimmerShader = {
         if (i >= uCount) break;
         vec4 c = uCols[i];
         float dx = (uv.x - c.x) * uAspect;
-        float dy = uv.y - c.y;
+        float dy = uv.y - c.y;                 // + = nad svahem
         float r = max(c.z, 0.004);
-        // sloupec: úzký napříč, vysoký podél — a bez ostré hranice,
-        // jinak by se v obraze rýsoval obdélník
-        float m = exp(-(dx * dx) / (r * r)) * exp(-(dy * dy) / (r * r * 9.0));
-        m *= c.w;
+        float h = max(c.w, 0.004);
+        // napříč měkce, vzhůru lineárně do ztracena, dolů (do svahu
+        // před sebou) rychle nic — horký vzduch leží na zemi, ne pod ní
+        float m = exp(-(dx * dx) / (r * r));
+        m *= dy >= 0.0 ? max(0.0, 1.0 - dy / h)
+                       : max(0.0, 1.0 + dy / (h * 0.30));
+        m *= uStr[i];
         if (m < 0.004) continue;
         // dvě frekvence stoupající vzhůru — jedna hrubá, druhá jemná
         float w1 = sin(uv.y * 210.0 - uTime * 3.1 + uv.x * 40.0);
@@ -154,14 +165,17 @@ export class PostFX {
     this._setFxaaSize(w * pr, h * pr)
   }
 
-  /** cols: [{x, y, r, s}] ve souřadnicích obrazu (uv), nejvýš MAX_COLS. */
+  /** cols: [{x, y, r, h, s}] ve souřadnicích obrazu (uv), nejvýš MAX_COLS. */
   setThermals(cols, time) {
     const u = this.shimmer.material.uniforms
     u.uTime.value = time
     const n = Math.min(cols.length, MAX_COLS)
     u.uCount.value = n
     this.shimmer.enabled = n > 0 // bez stoupáku v dohledu je průchod zbytečný
-    for (let i = 0; i < n; i++) u.uCols.value[i].set(cols[i].x, cols[i].y, cols[i].r, cols[i].s)
+    for (let i = 0; i < n; i++) {
+      u.uCols.value[i].set(cols[i].x, cols[i].y, cols[i].r, cols[i].h)
+      u.uStr.value[i] = cols[i].s
+    }
   }
 
   render() { this.composer.render() }

@@ -577,39 +577,52 @@ class Game {
   }
 
   /**
-   * Sloupce nejbližších stoupáků promítnuté do obrazu — vstup pro tepelné
-   * chvění v postfx. Střed se bere ve VÝŠCE KLUZÁKU (komín se s výškou
-   * naklání po větru, takže pevný bod by chvěl vedle), poloměr se měří
-   * druhým bodem odsazeným doprava od kamery.
+   * Rozpálené svahy promítnuté do obrazu — vstup pro tepelné chvění.
+   *
+   * Kotví se na ZEM v místě, odkud termika startuje (`th.x/th.z/th.ground`),
+   * ne do komína ve výšce: horký vzduch, který láme světlo, leží v přízemní
+   * vrstvě. Komín se navíc s výškou naklání po větru, takže kotva ve výšce
+   * vlnila prázdný vzduch šikmo vedle kopce.
+   *
+   * Promítají se tři body: kotva (poloha), kotva + poloměr doprava od kamery
+   * (šířka v obraze) a kotva + PŘÍZEMNÍ VRSTVA vzhůru (dosah nahoru).
    */
   _shimmerCols() {
     const cols = []
     const gp = this.glider.pos
-    const wind = this.cond.windVec
-    const wl = Math.max(1, wind.length())
+    const LAYER = 130 // m — dokud je vzduch od kamení znatelně teplejší
+    // bez slunce se nic nerozpálí: k večeru chvění mizí i nad skálou
+    const sunHeat = Math.max(0, Math.min(1, (this.sun.elevDeg - 6) / 22))
+    if (sunHeat <= 0) return cols
     _shRight.setFromMatrixColumn(this.camera.matrixWorld, 0)
     for (const th of this.lift.thermals) {
-      if (gp.y > th.top + 200 || gp.y < th.ground - 100) continue
-      const drift = Math.max(0, gp.y - th.ground) * 0.11
-      const cx = th.x + wind.x * drift / wl
-      const cz = th.z + wind.z * drift / wl
-      const d = Math.hypot(cx - gp.x, cz - gp.z)
-      if (d > 2400) continue
-      _shA.set(cx, Math.max(th.ground + 250, Math.min(th.top - 50, gp.y)), cz)
+      const d = Math.hypot(th.x - gp.x, th.z - gp.z)
+      const d3 = Math.hypot(d, gp.y - th.ground)
+      if (d3 > 2600) continue
+      _shA.set(th.x, th.ground + 12, th.z)
       _shB.copy(_shA).addScaledVector(_shRight, th.r)
+      _shC.set(th.x, th.ground + LAYER, th.z)
       _shA.project(this.camera)
       _shB.project(this.camera)
+      _shC.project(this.camera)
       if (_shA.z > 1 || Math.abs(_shA.x) > 1.7 || Math.abs(_shA.y) > 2) continue
       const r = Math.abs(_shB.x - _shA.x) * 0.5
-      if (r < 0.006) continue
-      // Chvění je vidět jen NA DÁLKU: uvnitř stoupáku není proti čemu ho
-      // srovnat (a rozvlnit celý obraz by byl jen kaz), z kilometrů zas
-      // splyne s oparem. Nejlíp funguje pár set metrů před nosem.
-      const near = Math.max(0, Math.min(1, (d - 130) / 320))
-      const far = 1 - Math.max(0, Math.min(1, (d - 1300) / 1100))
-      const s = Math.min(1, th.strength / 3) * near * far
+      const h = Math.abs(_shC.y - _shA.y) * 0.5
+      if (r < 0.006 || h < 0.002) continue
+      // Vidět je to jen z určité vzdálenosti: zblízka chybí srovnání
+      // s okolím, z kilometrů to spolkne opar.
+      const near = Math.max(0, Math.min(1, (d3 - 120) / 320))
+      const far = 1 - Math.max(0, Math.min(1, (d3 - 1400) / 1200))
+      const s = Math.min(1, th.strength / 3) * near * far * sunHeat
       if (s < 0.03) continue
-      cols.push({ x: _shA.x * 0.5 + 0.5, y: _shA.y * 0.5 + 0.5, r: Math.min(r, 0.34), s, d })
+      cols.push({
+        x: _shA.x * 0.5 + 0.5,
+        y: _shA.y * 0.5 + 0.5,
+        r: Math.min(r, 0.34),
+        h: Math.min(h, 0.30),
+        s,
+        d: d3,
+      })
     }
     cols.sort((a, b) => a.d - b.d)
     return cols
@@ -722,6 +735,7 @@ const _lookTarget = new THREE.Vector3()
 const _proj = new THREE.Vector3()
 const _shA = new THREE.Vector3()
 const _shB = new THREE.Vector3()
+const _shC = new THREE.Vector3()
 const _shRight = new THREE.Vector3()
 
 // ── bootstrap: terén + počasí paralelně ──
